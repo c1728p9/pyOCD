@@ -20,11 +20,13 @@ import logging
 from hidapi_backend import HidApiUSB
 from pyusb_backend import PyUSB
 from pywinusb_backend import PyWinUSB
+from pyserial_backend import PySerial
 
 INTERFACE = {
              'hidapiusb': HidApiUSB,
              'pyusb': PyUSB,
-             'pywinusb': PyWinUSB
+             'pywinusb': PyWinUSB,
+             'pyserial' : PySerial
             }
 
 # Allow user to override backend with an environment variable.
@@ -37,16 +39,4 @@ if usb_backend and ((usb_backend not in INTERFACE.keys()) or (not INTERFACE[usb_
 
 # Select backend based on OS and availability.
 if not usb_backend:
-    if os.name == "nt":
-        # Prefer hidapi over pyWinUSB for Windows, since pyWinUSB has known bug(s)
-        if HidApiUSB.isAvailable:
-            usb_backend = "hidapiusb"
-        elif PyWinUSB.isAvailable:
-            usb_backend = "pywinusb"
-    elif os.name == "posix":
-        # Select hidapi for OS X and pyUSB for Linux.
-        if os.uname()[0] == 'Darwin':
-            usb_backend = "hidapiusb"
-        else:
-            usb_backend = "pyusb"
-
+    usb_backend = "pyserial"
