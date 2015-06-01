@@ -24,6 +24,12 @@ import logging
 RESET = 0x40000544
 RESET_ENABLE = (1 << 0)
 
+NVMC_READY      = 0x4001E400
+NVMC_CONFIG     = 0x4001E504
+NVMC_ERASEPAGE  = 0x4001E508
+NVMC_ERASEALL   = 0x4001E50C
+NVMC_ERASEUIR   = 0x4001E514
+
 class NRF51(CortexM):
 
     memoryMap = MemoryMap(
@@ -45,3 +51,13 @@ class NRF51(CortexM):
         #reset
         logging.debug("target_nrf51.reset: trigger nRST pin")
         CortexM.reset(self)
+
+    def unlock(self, reset=True):
+        prev_config = self.readMemory(NVMC_CONFIG)
+        self.writeMemory(NVMC_CONFIG, 2)
+        self.writeMemory(NVMC_ERASEALL, 1)
+        while self.readMemory(NVMC_READY) == 0:
+            pass
+        self.writeMemory(NVMC_CONFIG, prev_config)
+        if reset:
+            self.resetStopOnReset()
