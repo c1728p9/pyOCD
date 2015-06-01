@@ -59,6 +59,7 @@ setup(
             'pyocd-gdbserver = pyOCD.tools.gdb_server:main',
             'pyocd-flashtool = pyOCD.tools.flash_tool:main',
             'pyocd-tool = pyOCD.tools.pyocd:main',
+            'pyocd-pynrfjprog = pyOCD.tools.pynrfjprog:main',
         ],
     },
     use_2to3=True,
