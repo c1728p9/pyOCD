@@ -176,7 +176,7 @@ class CMSIS_DAP_Protocol(object):
 
         return resp[1]
 
-    def transferConfigure(self, idle_cycles = 0x00, wait_retry = 0x0050, match_retry = 0x0000):
+    def transferConfigure(self, idle_cycles = 0x00, wait_retry = 0x2000, match_retry = 0x0000):
         cmd = []
         cmd.append(COMMAND_ID['DAP_TRANSFER_CONFIGURE'])
         cmd.append(idle_cycles)
