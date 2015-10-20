@@ -105,10 +105,10 @@ def cortex_test(board_id):
             addr = 0x20000000
             size = 0x502
             addr_flash = 0x10000
-        elif target_type == "k64f":
-            addr = 0x20000000
-            size = 0x502
-            addr_flash = 0x10000
+#        elif target_type == "k64f":
+#            addr = 0x20000000
+#            size = 0x502
+#            addr_flash = 0x10000
         elif target_type == "k22f":
             addr = 0x20000000
             size = 0x502
