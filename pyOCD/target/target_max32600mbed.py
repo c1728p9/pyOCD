@@ -35,15 +35,15 @@ class MAX32600MBED(CortexM):
     def dsb(self):
         logging.info("Triggering Destructive Security Bypass...")
 
-        self.protocol.vendor(1)
+        self.link.vendor(1)
 
         # Reconnect debugger
-        self.transport.init()
+        self.link.init()
 
     def fge(self):
         logging.info("Triggering Factory Global Erase...")
 
-        self.protocol.vendor(2)
+        self.link.vendor(2)
 
         # Reconnect debugger
-        self.transport.init()
+        self.link.init()
