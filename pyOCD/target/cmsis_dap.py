@@ -93,29 +93,35 @@ class CMSIS_DAP(object):
             self._handle_error()
             raise
 
-    def readMem(self, addr, transfer_size=32, mode=Link.MODE.NOW):
+    def readMem(self, addr, transfer_size=32, now=True):
         res = None
         try:
-            if mode in (Link.MODE.START, Link.MODE.NOW):
-                self.writeAP(AP_REG['CSW'], CSW_VALUE | TRANSFER_SIZE[transfer_size])
-                reg = Link.REG.ap_addr_to_reg(WRITE | AP_ACC | AP_REG['TAR'])
-                self.link.write_reg(reg, addr)
-                reg = Link.REG.ap_addr_to_reg(READ | AP_ACC | AP_REG['DRW'])
-                self.link.read_reg(reg, mode=Link.MODE.START)
-
-            if mode in (Link.MODE.NOW, Link.MODE.END):
-                reg = Link.REG.ap_addr_to_reg(READ | AP_ACC | AP_REG['DRW'])
-                res = self.link.read_reg(reg, mode=Link.MODE.END)
-
-                if transfer_size == 8:
-                    res = (res >> ((addr & 0x03) << 3) & 0xff)
-                elif transfer_size == 16:
-                    res = (res >> ((addr & 0x02) << 3) & 0xffff)
+            self.writeAP(AP_REG['CSW'], CSW_VALUE |
+                         TRANSFER_SIZE[transfer_size])
+            reg = Link.REG.ap_addr_to_reg(WRITE | AP_ACC | AP_REG['TAR'])
+            self.link.write_reg(reg, addr)
+            reg = Link.REG.ap_addr_to_reg(READ | AP_ACC | AP_REG['DRW'])
+            result_cb = self.link.read_reg(reg, now=False)
         except Link.Error:
             self._handle_error()
             raise
 
-        return res
+        def readMemCb():
+            try:
+                res = result_cb()
+                if transfer_size == 8:
+                    res = (res >> ((addr & 0x03) << 3) & 0xff)
+                elif transfer_size == 16:
+                    res = (res >> ((addr & 0x02) << 3) & 0xffff)
+            except Link.Error:
+                self._handle_error()
+                raise
+            return res
+
+        if now:
+            return readMemCb()
+        else:
+            return readMemCb
 
     # write aligned word ("data" are words)
     def writeBlock32(self, addr, data):
@@ -142,22 +148,26 @@ class CMSIS_DAP(object):
             raise
         return resp
 
-    def readDP(self, addr, mode=Link.MODE.NOW):
+    def readDP(self, addr, now=True):
         assert addr in Link.REG
-        res = None
 
         try:
-            if mode in (Link.MODE.START, Link.MODE.NOW):
-                self.link.read_reg(addr, mode=Link.MODE.START)
-
-            if mode in (Link.MODE.NOW, Link.MODE.END):
-                res = self.link.read_reg(addr, mode=Link.MODE.END)
-
+            result_cb = self.link.read_reg(addr, now=False)
         except Link.Error:
             self._handle_error()
             raise
 
-        return res
+        def readDPCb():
+            try:
+                return result_cb()
+            except Link.Error:
+                self._handle_error()
+                raise
+
+        if now:
+            return readDPCb()
+        else:
+            return readDPCb
 
     def writeDP(self, addr, data):
         assert addr in Link.REG
@@ -194,26 +204,31 @@ class CMSIS_DAP(object):
 
         return True
 
-    def readAP(self, addr, mode=Link.MODE.NOW):
+    def readAP(self, addr, now=True):
         assert type(addr) in (int, long)
         res = None
         ap_reg = Link.REG.ap_addr_to_reg(READ | AP_ACC | (addr & 0x0c))
 
         try:
-            if mode in (Link.MODE.START, Link.MODE.NOW):
-                ap_sel = addr & 0xff000000
-                bank_sel = addr & APBANKSEL
-
-                self.writeDP(DP_REG['SELECT'], ap_sel | bank_sel)
-                self.link.read_reg(ap_reg, mode=Link.MODE.START)
-
-            if mode in (Link.MODE.NOW, Link.MODE.END):
-                res = self.link.read_reg(ap_reg, mode=Link.MODE.END)
+            ap_sel = addr & 0xff000000
+            bank_sel = addr & APBANKSEL
+            self.writeDP(DP_REG['SELECT'], ap_sel | bank_sel)
+            result_cb = self.link.read_reg(ap_reg, now=False)
         except Link.Error:
             self._handle_error()
             raise
 
-        return res
+        def readAPCb():
+            try:
+                return result_cb()
+            except Link.Error:
+                self._handle_error()
+                raise
+
+        if now:
+            return readAPCb()
+        else:
+            return readAPCb
 
     def _handle_error(self):
         # Invalidate cached registers

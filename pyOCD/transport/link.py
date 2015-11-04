@@ -21,15 +21,6 @@ from enum import Enum
 
 class Link(object):
 
-    class MODE(Enum):
-        # Start a read.  This must be followed by an 'END' of the
-        # same type and in the same order
-        START = 1
-        # Read immediately
-        NOW = 2
-        # Get the result of a read started with 'START'
-        END = 3
-
     class DP_MODE(Enum):
         SWD = 1
         JTAG = 2
@@ -119,11 +110,11 @@ class Link(object):
     def write_reg(self, reg_id, value, dap_index=0):
         raise NotImplementedError()
 
-    def read_reg(self, reg_id, dap_index=0, mode=MODE.NOW):
+    def read_reg(self, reg_id, dap_index=0, now=True):
         raise NotImplementedError()
 
     def reg_write_repeat(self, num_repeats, reg_id, data_array, dap_index=0):
         raise NotImplementedError()
 
-    def reg_read_repeat(self, num_repeats, reg_id, dap_index=0, mode=MODE.NOW):
+    def reg_read_repeat(self, num_repeats, reg_id, dap_index=0, now=True):
         raise NotImplementedError()

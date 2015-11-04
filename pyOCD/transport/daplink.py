@@ -78,7 +78,7 @@ class _Transfer(object):
     of reads to the same register.
     """
 
-    def __init__(self, dap_index, transfer_count,
+    def __init__(self, daplink, dap_index, transfer_count,
                  transfer_request, transfer_data):
         # Writes should not need a tranfer object
         # since they don't have any response data
@@ -86,6 +86,7 @@ class _Transfer(object):
         assert isinstance(transfer_count, six.integer_types)
         assert isinstance(transfer_request, six.integer_types)
         assert transfer_request & READ
+        self.daplink = daplink
         self.dap_index = dap_index
         self.transfer_count = transfer_count
         self.transfer_request = transfer_request
@@ -128,6 +129,13 @@ class _Transfer(object):
         """
         Get the result of this tranfer.
         """
+        while self._result is None:
+            if len(self.daplink._commands_to_read) > 0:
+                self.daplink._read_packet()
+            else:
+                assert not self.daplink._crnt_cmd.get_empty()
+                self.daplink.flush()
+
         if self._error is not None:
             # Pylint is confused and thinks self._error is None
             # since that is what it is initialized to.
@@ -392,7 +400,6 @@ class DapLink(Link):
         self._transfer_list = None
         self._crnt_cmd = None
         self._packet_size = None
-        self._completed_read_list = None
         self._commands_to_read = None
         self._command_response_buf = None
         return
@@ -547,27 +554,30 @@ class DapLink(Link):
         request |= (reg_id.value % 4) * 4
         self._write(dap_index, 1, request, [value])
 
-    def read_reg(self, reg_id, dap_index=0, mode=Link.MODE.NOW):
+    def read_reg(self, reg_id, dap_index=0, now=True):
         assert reg_id in self.REG
         assert isinstance(dap_index, six.integer_types)
-        assert mode in self.MODE
-        res = None
+        assert isinstance(now, bool)
 
-        if mode in (Link.MODE.START, Link.MODE.NOW):
-            request = READ
-            if reg_id.value < 4:
-                request |= DP_ACC
-            else:
-                request |= AP_ACC
-            request |= (reg_id.value % 4) << 2
-            self._write(dap_index, 1, request, None)
+        request = READ
+        if reg_id.value < 4:
+            request |= DP_ACC
+        else:
+            request |= AP_ACC
+        request |= (reg_id.value % 4) << 2
+        transfer = self._write(dap_index, 1, request, None)
+        assert transfer is not None
 
-        if mode in (Link.MODE.NOW, Link.MODE.END):
-            res = self._read()
+        def read_reg_cb():
+            res = transfer.get_result()
             assert len(res) == 1
             res = res[0]
+            return res
 
-        return res
+        if now:
+            return read_reg_cb()
+        else:
+            return read_reg_cb
 
     def reg_write_repeat(self, num_repeats, reg_id, data_array, dap_index=0):
         assert isinstance(num_repeats, six.integer_types)
@@ -584,28 +594,30 @@ class DapLink(Link):
         self._write(dap_index, num_repeats, request, data_array)
 
     def reg_read_repeat(self, num_repeats, reg_id, dap_index=0,
-                        mode=Link.MODE.NOW):
+                        now=True):
         assert isinstance(num_repeats, six.integer_types)
         assert reg_id in self.REG
         assert isinstance(dap_index, six.integer_types)
-        assert mode in self.MODE
-        res = None
+        assert isinstance(now, bool)
 
-        if mode in (Link.MODE.START, Link.MODE.NOW):
-            request = READ
-            if reg_id.value < 4:
-                request |= DP_ACC
-            else:
-                request |= AP_ACC
-            request |= (reg_id.value % 4) * 4
-            self._write(dap_index, num_repeats, request, None)
+        request = READ
+        if reg_id.value < 4:
+            request |= DP_ACC
+        else:
+            request |= AP_ACC
+        request |= (reg_id.value % 4) * 4
+        transfer = self._write(dap_index, num_repeats, request, None)
+        assert transfer is not None
 
-        if mode in (Link.MODE.NOW, Link.MODE.END):
-            res = self._read()
+        def reg_read_repeat_cb():
+            res = transfer.get_result()
             assert len(res) == num_repeats
+            return res
 
-        return res
-
+        if now:
+            return reg_read_repeat_cb()
+        else:
+            return reg_read_repeat_cb
     # ------------------------------------------- #
     #          Private functions
     # ------------------------------------------- #
@@ -629,8 +641,6 @@ class DapLink(Link):
         # Buffer for data returned for completed commands.
         # This data will be added to tranfers
         self._command_response_buf = bytearray()
-        # List of completed tranfers
-        self._completed_read_list = collections.deque()
 
     def _read_packet(self):
         """
@@ -680,7 +690,6 @@ class DapLink(Link):
             data = self._command_response_buf[pos:pos + size]
             pos += size
             transfer.add_response(data)
-            self._completed_read_list.append(transfer)
 
         # Remove used data from _command_response_buf
         if pos > 0:
@@ -718,9 +727,10 @@ class DapLink(Link):
         assert transfer_data is None or len(transfer_data) > 0
 
         # Create transfer and add to transfer list
+        transfer = None
         if transfer_request & READ:
-            transfer = _Transfer(dap_index, transfer_count,
-                                transfer_request, transfer_data)
+            transfer = _Transfer(self, dap_index, transfer_count,
+                                 transfer_request, transfer_data)
             self._transfer_list.append(transfer)
 
         # Build physical packet by adding it to command
@@ -755,21 +765,7 @@ class DapLink(Link):
         if not self._deferred_transfer:
             self.flush()
 
-    def _read(self):
-        """
-        Read the response from a single command
-        """
-        # Get more data if there isn't enough
-        while len(self._completed_read_list) == 0:
-            if len(self._commands_to_read) > 0:
-                self._read_packet()
-            else:
-                assert not self._crnt_cmd.get_empty()
-                self.flush()
-
-        # Return data
-        tranfer = self._completed_read_list.popleft()
-        return tranfer.get_result()
+        return transfer
 
     def _jtag_to_swd(self):
         """
