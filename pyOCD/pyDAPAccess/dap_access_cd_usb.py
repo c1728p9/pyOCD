@@ -30,6 +30,11 @@ class DAPAccessUSB(DAPAccessCMSISDAP):
     #          Static Functions
     # ------------------------------------------- #
     @staticmethod
+    def set_args(arg_list):
+        # Do nothing
+        pass
+
+    @staticmethod
     def get_connected_devices():
         """
         Return an array of all mbed boards connected

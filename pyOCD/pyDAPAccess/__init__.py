@@ -17,8 +17,8 @@
 from .dap_access_api import DAPAccessIntf
 from .dap_access_cd_usb import DAPAccessUSB
 from .dap_access_cd_ws import DAPAccessWS
+from .dap_access_all import DAPAccessAll
 
 # alias DAPAccessUSB as main DAPAccess class
-
-DAPAccess = DAPAccessUSB
+DAPAccess = DAPAccessAll
 DAPAccessSocket = DAPAccessWS

@@ -29,6 +29,7 @@ from pyOCD.gdbserver import GDBServer
 from pyOCD.board import MbedBoard
 from pyOCD.utility.cmdline import split_command_line
 import pyOCD.board.mbed_board
+from pyOCD.pyDAPAccess  import DAPAccess
 
 LEVELS = {
     'debug': logging.DEBUG,
@@ -78,6 +79,7 @@ class GDBServerTool(object):
         parser.add_argument("-S", "--semihosting", dest="enable_semihosting", action="store_true", help="Enable semihosting.")
         parser.add_argument("-G", "--gdb-syscall", dest="semihost_use_syscalls", action="store_true", help="Use GDB syscalls for semihosting file I/O.")
         parser.add_argument("-c", "--command", dest="commands", metavar="CMD", action='append', nargs='+', help="Run command (OpenOCD compatibility).")
+        parser.add_argument("-da", "--daparg", dest="daparg", action='append', default=[], help="Send setting to DAPAccess layer.")
         return parser
 
     def get_chip_erase(self, args):
@@ -222,6 +224,7 @@ class GDBServerTool(object):
         self.args = self.build_parser().parse_args(args)
         self.gdb_server_settings = self.get_gdb_server_settings(self.args)
         self.setup_logging(self.args)
+        DAPAccess.set_args(self.args.daparg)
 
         self.process_commands(self.args.commands)
 

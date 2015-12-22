@@ -76,6 +76,11 @@ class DAPAccessIntf(object):
         pass
 
     @staticmethod
+    def set_args(arg_list):
+        """Set arguments to configure behavior"""
+        raise NotImplementedError()
+
+    @staticmethod
     def get_connected_devices():
         """Return a list of DAPAccess devices"""
         raise NotImplementedError()
