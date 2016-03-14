@@ -14,6 +14,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 """
+from __future__ import print_function
 
 import argparse, os, sys
 from time import sleep, time
@@ -65,17 +66,17 @@ def gdb_server_json_test(board_id):
     def validate_basic_keys(data):
         did_pass = True
 
-        print 'pyocd_version',
+        print('pyocd_version')
         p = data.has_key('pyocd_version')
         if p:
             p = data['pyocd_version'] == __version__
         if p:
-            print "PASSED"
+            print("PASSED")
         else:
             did_pass = False
-            print"FAILED"
+            print("FAILED")
 
-        print 'version',
+        print('version')
         p = data.has_key('version')
         if p:
             v = data['version']
@@ -83,35 +84,35 @@ def gdb_server_json_test(board_id):
         if p:
             p = v['major'] == 1 and v['minor'] == 0
         if p:
-            print "PASSED"
+            print("PASSED")
         else:
             did_pass = False
-            print"FAILED"
+            print("FAILED")
 
-        print 'status',
+        print('status')
         p = data.has_key('status')
         if p:
             p = data['status'] == 0
         if p:
-            print "PASSED"
+            print("PASSED")
         else:
             did_pass = False
-            print"FAILED"
+            print("FAILED")
 
         return did_pass
 
     def validate_boards(data):
         did_pass = True
 
-        print 'boards',
+        print('boards')
         p = data.has_key('boards') and type(data['boards']) is list
         if p:
             b = data['boards']
         if p:
-            print "PASSED"
+            print("PASSED")
         else:
             did_pass = False
-            print"FAILED"
+            print("FAILED")
 
         try:
             all_mbeds = MbedBoard.getAllConnectedBoards(close=True, blocking=False)
@@ -129,12 +130,12 @@ def gdb_server_json_test(board_id):
                         break
                 p = matching_boards == len(all_mbeds)
             if p:
-                print "PASSED"
+                print("PASSED")
             else:
                 did_pass = False
-                print"FAILED"
+                print("FAILED")
         except Exception:
-            print "FAILED"
+            print("FAILED")
             did_pass = False
 
         return did_pass
@@ -142,7 +143,7 @@ def gdb_server_json_test(board_id):
     def validate_targets(data):
         did_pass = True
 
-        print 'targets',
+        print('targets')
         p = data.has_key('targets') and type(data['targets']) is list
         if p:
             targets = data['targets']
@@ -151,17 +152,17 @@ def gdb_server_json_test(board_id):
                 if not p:
                     break
         if p:
-            print "PASSED"
+            print("PASSED")
         else:
             did_pass = False
-            print"FAILED"
+            print("FAILED")
 
         return did_pass
 
 
     result = GdbServerJsonTestResult()
 
-    print "\r\n\r\n----- TESTING BOARDS LIST -----"
+    print("\r\n\r\n----- TESTING BOARDS LIST -----")
     out = subprocess.check_output(['pyocd-gdbserver', '--list', '--json'])
     data = json.loads(out)
     test_count += 2
@@ -170,7 +171,7 @@ def gdb_server_json_test(board_id):
     if validate_boards(data):
         test_pass_count += 1
 
-    print "\r\n\r\n----- TESTING TARGETS LIST -----"
+    print("\r\n\r\n----- TESTING TARGETS LIST -----")
     out = subprocess.check_output(['pyocd-gdbserver', '--list-targets', '--json'])
     data = json.loads(out)
     test_count += 2
