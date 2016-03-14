@@ -173,6 +173,7 @@ with open(TEST_PARAM_FILE, "rb") as f:
 def run_test():
 
     test_result = {}
+    test_port = test_params['test_port']
     rom_start = test_params['rom_start']
     ram_start = test_params['ram_start']
     ram_length = test_params['ram_length']
@@ -197,7 +198,7 @@ def run_test():
         gdb.execute("set remotelogfile gdb_test_raw.txt")
 
         # Connect to server
-        gdb.execute("target remote localhost:3334")
+        gdb.execute("target remote localhost:%s" % test_port)
 
         # Possibly useful other commands for reference:
         # info breakpoints

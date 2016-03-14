@@ -16,7 +16,7 @@
 """
 from __future__ import print_function
 
-import os, sys
+import os, sys, threading
 
 parentdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, parentdir)
@@ -79,18 +79,17 @@ def main():
     # Put together list of tests
     test = Test("Basic Test",
                 lambda board, log_func: basic_test(board, None, log_func))
-    test_list.append(test)
-    test_list.append(GdbServerJsonTest())
-    test_list.append(SpeedTest())
-    test_list.append(CortexTest())
-    test_list.append(FlashTest())
+    #test_list.append(test)
+    #test_list.append(GdbServerJsonTest())
+    #test_list.append(SpeedTest())
+    #test_list.append(CortexTest())
+    #test_list.append(FlashTest())
     test_list.append(GdbTest())
 
     # Put together list of boards to test
     board_list = MbedBoard.getAllConnectedBoards(close=True, blocking=False)
 
-    start = time()
-    for board in board_list:
+    def test_board(board, test_list, log_func):
         print("--------------------------")
         print("TESTING BOARD %s" % board.getUniqueID())
         print("--------------------------")
@@ -100,6 +99,16 @@ def main():
             test_stop = time()
             result.time = test_stop - test_start
             result_list.append(result)
+
+    start = time()
+    thread_list = []
+    for board in board_list:
+        board_thread = threading.Thread(target=test_board, args=(board, test_list, default_log))
+        thread_list.append(board_thread)
+        board_thread.start()
+    for thread in thread_list:
+        thread.join()
+
     stop = time()
     test_time = (stop - start)
 

@@ -35,6 +35,8 @@ def default_log(message):
 
 
 def basic_test(board_id, file, log_func=default_log):
+    #board_id = "0231000026294e450033000e58a900453ee1000097969900"
+
     with MbedBoard.chooseBoard(board_id=board_id) as board:
         addr = 0
         size = 0

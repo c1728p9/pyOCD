@@ -185,8 +185,14 @@ class MbedBoard(Board):
         """
         Allow you to select a board among all boards connected
         """
-        all_mbeds = MbedBoard.getAllConnectedBoards(dap_class, False, blocking,
-                                                    target_override, frequency)
+        if board_id is None:
+            all_mbeds = MbedBoard.getAllConnectedBoards(dap_class, False, blocking,
+                                                        target_override, frequency)
+        else:
+            device = dap_class.get_device(board_id)
+            device.open()
+            new_mbed = MbedBoard(device, target_override, frequency)
+            all_mbeds = [new_mbed]
 
         # If a board ID is specified close all other boards
         if board_id != None:

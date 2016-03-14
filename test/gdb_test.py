@@ -31,6 +31,7 @@ from subprocess import Popen, STDOUT, PIPE
 from pyOCD.tools.gdb_server import GDBServerTool
 from pyOCD.board import MbedBoard
 from test_util import Test, TestResult
+from threading import Lock
 
 # TODO, c1728p9 - run script several times with
 #       with different command line parameters
@@ -43,12 +44,11 @@ PYTHON_GDB_FOR_OS = {
     "win": "arm-none-eabi-gdb-py",
 }
 PYTHON_GDB = None
+STARTING_TEST_PORT = 3334
 for prefix, program in PYTHON_GDB_FOR_OS.iteritems():
     if sys.platform.startswith(prefix):
         PYTHON_GDB = program
         break
-
-
 parentdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -72,6 +72,7 @@ class GdbTest(Test):
             result.passed = False
             print("Exception %s when testing board %s" %
                   (e, board.getUniqueID()))
+            raise
         result.board = board
         result.test = self
         return result
@@ -84,6 +85,33 @@ TEST_RESULT_KEYS = [
     "step_time_n",
     "fail_count",
 ]
+
+
+class PortLock(object):
+    _port_lock = Lock()
+    _ports_in_use = set()
+
+    def __init__(self):
+        self._port = None
+
+    def __enter__(self):
+        print("enter 1")
+        with PortLock._port_lock:
+            free_port = STARTING_TEST_PORT
+            while free_port in PortLock._ports_in_use:
+                free_port += 1
+            PortLock._ports_in_use.add(free_port)
+        self._port = free_port
+        print("enter 2")
+        return free_port
+
+    def __exit__(self, exptn_type, value, traceback):
+        print("exit 1")
+        with PortLock._port_lock:
+            assert self._port in PortLock._ports_in_use
+            PortLock._ports_in_use.remove(self._port)
+        print("exit 2")
+        return False
 
 
 def default_log(message):
@@ -103,7 +131,6 @@ def test_gdb(board_id=None, log_func=default_log):
         if board_id is None:
             board_id = board.getUniqueID()
         test_clock = 10000000
-        test_port = 3334
         error_on_invalid_access = True
         # Hardware breakpoints are not supported above 0x20000000 on
         # CortexM devices
@@ -118,27 +145,30 @@ def test_gdb(board_id=None, log_func=default_log):
         board.flash.flashBinary(binary_file, rom_region.start)
         board.uninit(False)
 
-    # Write out the test configuration
-    test_params = {}
-    test_params["rom_start"] = rom_region.start
-    test_params["rom_length"] = rom_region.length
-    test_params["ram_start"] = ram_region.start
-    test_params["ram_length"] = ram_region.length
-    test_params["invalid_start"] = 0xffff0000
-    test_params["invalid_length"] = 0x1000
-    test_params["expect_error_on_invalid_access"] = error_on_invalid_access
-    test_params["ignore_hw_bkpt_result"] = ignore_hw_bkpt_result
-    with open(TEST_PARAM_FILE, "wb") as f:
-        f.write(json.dumps(test_params))
+    with PortLock() as test_port:
 
-    # Run the test
-    gdb = [PYTHON_GDB, "--command=gdb_script.py"]
-    with open("output.txt", "wb") as f:
-        program = Popen(gdb, stdin=PIPE, stdout=f, stderr=STDOUT)
-        args = ['-p=%i' % test_port, "-f=%i" % test_clock, "-b=%s" % board_id]
-        server = GDBServerTool()
-        server.run(args)
-        program.wait()
+        # Write out the test configuration
+        test_params = {}
+        test_params['test_port'] = test_port
+        test_params["rom_start"] = rom_region.start
+        test_params["rom_length"] = rom_region.length
+        test_params["ram_start"] = ram_region.start
+        test_params["ram_length"] = ram_region.length
+        test_params["invalid_start"] = 0xffff0000
+        test_params["invalid_length"] = 0x1000
+        test_params["expect_error_on_invalid_access"] = error_on_invalid_access
+        test_params["ignore_hw_bkpt_result"] = ignore_hw_bkpt_result
+        with open(TEST_PARAM_FILE, "wb") as f:
+            f.write(json.dumps(test_params))
+
+        # Run the test
+        gdb = [PYTHON_GDB, "--command=gdb_script.py"]
+        with open("output.txt", "wb") as f:
+            program = Popen(gdb, stdin=PIPE, stdout=f, stderr=STDOUT)
+            args = ['-p=%i' % test_port, "-f=%i" % test_clock, "-b=%s" % board_id]
+            server = GDBServerTool()
+            server.run(args)
+            program.wait()
 
     # Read back the result
     with open(TEST_RESULT_FILE, "rb") as f:
