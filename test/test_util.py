@@ -45,7 +45,7 @@ class Test(object):
         self.name = name
         self.test_function = function
 
-    def run(self, board):
+    def run(self, board, log_func):
         """
         Run test and return the result
 
@@ -53,7 +53,7 @@ class Test(object):
         """
         passed = False
         try:
-            self.test_function(board.getUniqueID())
+            self.test_function(board.getUniqueID(), log_func=log_func)
             passed = True
         except Exception as e:
             print("Exception %s when testing board %s" % (e, board.getUniqueID()))

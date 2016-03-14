@@ -97,9 +97,9 @@ class FlashTest(Test):
                   file=output_file)
         print("", file=output_file)
 
-    def run(self, board):
+    def run(self, board, log_func):
         try:
-            result = self.test_function(board.getUniqueID())
+            result = self.test_function(board.getUniqueID(), log_func)
         except Exception as e:
             result = FlashTestResult()
             result.passed = False
@@ -119,7 +119,11 @@ def same(d1, d2):
     return True
 
 
-def flash_test(board_id):
+def default_log(message):
+    print(message)
+
+
+def flash_test(board_id, log_func=default_log):
     with MbedBoard.chooseBoard(board_id=board_id, frequency=1000000) as board:
         target_type = board.getTargetType()
 
@@ -169,8 +173,7 @@ def flash_test(board_id):
             if not print_progress.done:
                 sys.stdout.write('\r')
                 i = int(progress * 20.0)
-                sys.stdout.write("[%-20s] %3d%%" % ('=' * i, round(progress * 100)))
-                sys.stdout.flush()
+                log_func("[%-20s] %3d%%" % ('=' * i, round(progress * 100)))
 
             # Finish on 1.0
             if progress >= 1.0:
@@ -178,7 +181,7 @@ def flash_test(board_id):
                     print_progress.done = True
                     sys.stdout.write("\n")
                     if print_progress.backwards_progress:
-                        print("Progress went backwards during flash")
+                        log_func("Progress went backwards during flash")
         print_progress.prev_progress = 0
 
         binary_file = os.path.join(parentdir, 'binaries', board.getTestBinary())
@@ -193,83 +196,83 @@ def flash_test(board_id):
         # Turn on extra checks for the next 4 tests
         flash.setFlashAlgoDebug(True)
 
-        print("\r\n\r\n------ Test Basic Page Erase ------")
+        log_func("\r\n\r\n------ Test Basic Page Erase ------")
         info = flash.flashBlock(addr, data, False, False, progress_cb=print_progress)
         data_flashed = target.readBlockMemoryUnaligned8(addr, size)
         if same(data_flashed, data) and info.program_type is FlashBuilder.FLASH_PAGE_ERASE:
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
         else:
-            print("TEST FAILED")
+            log_func("TEST FAILED")
         test_count += 1
 
-        print("\r\n\r\n------ Test Basic Chip Erase ------")
+        log_func("\r\n\r\n------ Test Basic Chip Erase ------")
         info = flash.flashBlock(addr, data, False, True, progress_cb=print_progress)
         data_flashed = target.readBlockMemoryUnaligned8(addr, size)
         if same(data_flashed, data) and info.program_type is FlashBuilder.FLASH_CHIP_ERASE:
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
         else:
-            print("TEST FAILED")
+            log_func("TEST FAILED")
         test_count += 1
 
-        print("\r\n\r\n------ Test Smart Page Erase ------")
+        log_func("\r\n\r\n------ Test Smart Page Erase ------")
         info = flash.flashBlock(addr, data, True, False, progress_cb=print_progress)
         data_flashed = target.readBlockMemoryUnaligned8(addr, size)
         if same(data_flashed, data) and info.program_type is FlashBuilder.FLASH_PAGE_ERASE:
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
         else:
-            print("TEST FAILED")
+            log_func("TEST FAILED")
         test_count += 1
 
-        print("\r\n\r\n------ Test Smart Chip Erase ------")
+        log_func("\r\n\r\n------ Test Smart Chip Erase ------")
         info = flash.flashBlock(addr, data, True, True, progress_cb=print_progress)
         data_flashed = target.readBlockMemoryUnaligned8(addr, size)
         if same(data_flashed, data) and info.program_type is FlashBuilder.FLASH_CHIP_ERASE:
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
         else:
-            print("TEST FAILED")
+            log_func("TEST FAILED")
         test_count += 1
 
         flash.setFlashAlgoDebug(False)
 
-        print("\r\n\r\n------ Test Basic Page Erase (Entire chip) ------")
+        log_func("\r\n\r\n------ Test Basic Page Erase (Entire chip) ------")
         new_data = list(data)
         new_data.extend(unused * [0x77])
         info = flash.flashBlock(0, new_data, False, False, progress_cb=print_progress)
         if info.program_type == FlashBuilder.FLASH_PAGE_ERASE:
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
             result.page_erase_rate = float(len(new_data)) / float(info.program_time)
         else:
-            print("TEST FAILED")
+            log_func("TEST FAILED")
         test_count += 1
 
-        print("\r\n\r\n------ Test Fast Verify ------")
+        log_func("\r\n\r\n------ Test Fast Verify ------")
         info = flash.flashBlock(0, new_data, progress_cb=print_progress, fast_verify=True)
         if info.program_type == FlashBuilder.FLASH_PAGE_ERASE:
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
         else:
-            print("TEST FAILED")
+            log_func("TEST FAILED")
         test_count += 1
 
-        print("\r\n\r\n------ Test Offset Write ------")
+        log_func("\r\n\r\n------ Test Offset Write ------")
         addr = rom_start + rom_size / 2
         page_size = flash.getPageInfo(addr).size
         new_data = [0x55] * page_size * 2
         info = flash.flashBlock(addr, new_data, progress_cb=print_progress)
         data_flashed = target.readBlockMemoryUnaligned8(addr, len(new_data))
         if same(data_flashed, new_data) and info.program_type is FlashBuilder.FLASH_PAGE_ERASE:
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
         else:
-            print("TEST FAILED")
+            log_func("TEST FAILED")
         test_count += 1
 
-        print("\r\n\r\n------ Test Multiple Block Writes ------")
+        log_func("\r\n\r\n------ Test Multiple Block Writes ------")
         addr = rom_start + rom_size / 2
         page_size = flash.getPageInfo(addr).size
         more_data = [0x33] * page_size * 2
@@ -281,13 +284,13 @@ def flash_test(board_id):
         data_flashed = target.readBlockMemoryUnaligned8(rom_start, len(data))
         data_flashed_more = target.readBlockMemoryUnaligned8(addr, len(more_data))
         if same(data_flashed, data) and same(data_flashed_more, more_data):
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
         else:
-            print("TEST FAILED")
+            log_func("TEST FAILED")
         test_count += 1
 
-        print("\r\n\r\n------ Test Overlapping Blocks ------")
+        log_func("\r\n\r\n------ Test Overlapping Blocks ------")
         test_pass = False
         addr = (rom_start + rom_size / 2) #cover multiple pages
         page_size = flash.getPageInfo(addr).size
@@ -297,86 +300,86 @@ def flash_test(board_id):
         try:
             fb.addData(addr + 1, new_data)
         except ValueError as e:
-            print("Exception: %s" % e)
+            log_func("Exception: %s" % e)
             test_pass = True
         if test_pass:
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
         else:
-            print("TEST FAILED")
+            log_func("TEST FAILED")
         test_count += 1
 
-        print("\r\n\r\n------ Test Empty Block Write ------")
+        log_func("\r\n\r\n------ Test Empty Block Write ------")
         # Freebee if nothing asserts
         fb = flash.getFlashBuilder()
         fb.program()
-        print("TEST PASSED")
+        log_func("TEST PASSED")
         test_pass_count += 1
         test_count += 1
 
-        print("\r\n\r\n------ Test Missing Progress Callback ------")
+        log_func("\r\n\r\n------ Test Missing Progress Callback ------")
         # Freebee if nothing asserts
         addr = rom_start
         flash.flashBlock(rom_start, data, True)
-        print("TEST PASSED")
+        log_func("TEST PASSED")
         test_pass_count += 1
         test_count += 1
 
         # Only run test if the reset handler can be programmed (rom start at address 0)
         if rom_start == 0:
-            print("\r\n\r\n------ Test Non-Thumb reset handler ------")
+            log_func("\r\n\r\n------ Test Non-Thumb reset handler ------")
             non_thumb_data = list(data)
             # Clear bit 0 of 2nd word - reset handler
             non_thumb_data[4] = non_thumb_data[4] & ~1
             flash.flashBlock(rom_start, non_thumb_data)
             flash.flashBlock(rom_start, data)
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
             test_count += 1
 
         # Note - The decision based tests below are order dependent since they
         # depend on the previous state of the flash
 
-        print("\r\n\r\n------ Test Chip Erase Decision ------")
+        log_func("\r\n\r\n------ Test Chip Erase Decision ------")
         new_data = list(data)
         new_data.extend([0xff] * unused) # Pad with 0xFF
         info = flash.flashBlock(0, new_data, progress_cb=print_progress)
         if info.program_type == FlashBuilder.FLASH_CHIP_ERASE:
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
             result.chip_erase_rate_erased = float(len(new_data)) / float(info.program_time)
         else:
-            print("TEST FAILED")
+            log_func("TEST FAILED")
         test_count += 1
 
-        print("\r\n\r\n------ Test Chip Erase Decision 2 ------")
+        log_func("\r\n\r\n------ Test Chip Erase Decision 2 ------")
         new_data = list(data)
         new_data.extend([0x00] * unused) # Pad with 0x00
         info = flash.flashBlock(0, new_data, progress_cb=print_progress)
         if info.program_type == FlashBuilder.FLASH_CHIP_ERASE:
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
             result.chip_erase_rate = float(len(new_data)) / float(info.program_time)
         else:
-            print("TEST FAILED")
+            log_func("TEST FAILED")
         test_count += 1
 
-        print("\r\n\r\n------ Test Page Erase Decision ------")
+        log_func("\r\n\r\n------ Test Page Erase Decision ------")
         new_data = list(data)
         new_data.extend([0x00] * unused) # Pad with 0x00
         info = flash.flashBlock(0, new_data, progress_cb=print_progress)
         if info.program_type == FlashBuilder.FLASH_PAGE_ERASE:
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
             result.page_erase_rate_same = float(len(new_data)) / float(info.program_time)
             result.analyze = info.analyze_type
             result.analyze_time = info.analyze_time
             result.analyze_rate = float(len(new_data)) / float(info.analyze_time)
         else:
-            print("TEST FAILED")
+            log_func("TEST FAILED")
         test_count += 1
 
-        print("\r\n\r\n------ Test Page Erase Decision 2 ------")
+        log_func("\r\n\r\n------ Test Page Erase Decision 2 ------")
         new_data = list(data)
         size_same = unused * 5 / 6
         size_differ = unused - size_same
@@ -384,18 +387,18 @@ def flash_test(board_id):
         new_data.extend([0x55] * size_differ)
         info = flash.flashBlock(0, new_data, progress_cb=print_progress)
         if info.program_type == FlashBuilder.FLASH_PAGE_ERASE:
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
         else:
-            print("TEST FAILED")
+            log_func("TEST FAILED")
         test_count += 1
 
-        print("\r\n\r\nTest Summary:")
-        print("Pass count %i of %i tests" % (test_pass_count, test_count))
+        log_func("\r\n\r\nTest Summary:")
+        log_func("Pass count %i of %i tests" % (test_pass_count, test_count))
         if test_pass_count == test_count:
-            print("FLASH TEST SCRIPT PASSED")
+            log_func("FLASH TEST SCRIPT PASSED")
         else:
-            print("FLASH TEST SCRIPT FAILED")
+            log_func("FLASH TEST SCRIPT FAILED")
 
         target.reset()
 

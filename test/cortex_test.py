@@ -46,9 +46,9 @@ class CortexTest(Test):
     def print_perf_info(self, result_list, output_file=None):
         pass
 
-    def run(self, board):
+    def run(self, board, log_func):
         try:
-            result = self.test_function(board.getUniqueID())
+            result = self.test_function(board.getUniqueID(), log_func)
         except Exception as e:
             result = CortexTestResult()
             result.passed = False
@@ -74,7 +74,12 @@ def test_function(board, function):
     stop = time()
     return (stop - start) / float(TEST_COUNT)
 
-def cortex_test(board_id, log_file=sys.stdout):
+
+def default_log(message):
+    print(message)
+
+
+def cortex_test(board_id, log_func=default_log):
     with MbedBoard.chooseBoard(board_id=board_id, frequency=1000000) as board:
         target_type = board.getTargetType()
 
@@ -106,7 +111,7 @@ def cortex_test(board_id, log_file=sys.stdout):
         test_count = 0
         result = CortexTestResult()
 
-        print("\r\n\r\n----- FLASH NEW BINARY BEFORE TEST -----", file=log_file)
+        log_func("\r\n\r\n----- FLASH NEW BINARY BEFORE TEST -----")
         flash.flashBinary(binary_file, addr_bin)
         # Let the target run for a bit so it
         # can initialize the watchdog if it needs to
@@ -114,41 +119,41 @@ def cortex_test(board_id, log_file=sys.stdout):
         sleep(0.2)
         target.halt()
 
-        print("PROGRAMMING COMPLETE", file=log_file)
+        log_func("PROGRAMMING COMPLETE")
 
 
-        print("\r\n\r\n----- TESTING CORTEX-M PERFORMANCE -----", file=log_file)
+        log_func("\r\n\r\n----- TESTING CORTEX-M PERFORMANCE -----")
         test_time = test_function(board, target.getTResponse)
-        print("Function getTResponse time: %f" % test_time, file=log_file)
+        log_func("Function getTResponse time: %f" % test_time)
 
         # Step
         test_time = test_function(board, target.step)
-        print("Function step time: %f" % test_time, file=log_file)
+        log_func("Function step time: %f" % test_time)
 
         # Breakpoint
         def set_remove_breakpoint():
             target.setBreakpoint(0)
             target.removeBreakpoint(0)
         test_time = test_function(board, set_remove_breakpoint)
-        print("Add and remove breakpoint: %f" % test_time, file=log_file)
+        log_func("Add and remove breakpoint: %f" % test_time)
 
         # getRegisterContext
         test_time = test_function(board, target.getRegisterContext)
-        print("Function getRegisterContext: %f" % test_time, file=log_file)
+        log_func("Function getRegisterContext: %f" % test_time)
 
         # setRegisterContext
         context = target.getRegisterContext()
         def set_register_context():
             target.setRegisterContext(context)
         test_time = test_function(board, set_register_context)
-        print("Function setRegisterContext: %f" % test_time, file=log_file)
+        log_func("Function setRegisterContext: %f" % test_time)
 
         # Run / Halt
         def run_halt():
             target.resume()
             target.halt()
         test_time = test_function(board, run_halt)
-        print("Resume and halt: %f" % test_time, file=log_file)
+        log_func("Resume and halt: %f" % test_time)
 
         # GDB stepping
         def simulate_step():
@@ -160,15 +165,15 @@ def cortex_test(board_id, log_file=sys.stdout):
             target.getTResponse()
             target.removeBreakpoint(0)
         test_time = test_function(board, simulate_step)
-        print("Simulated GDB step: %f" % test_time, file=log_file)
+        log_func("Simulated GDB step: %f" % test_time)
 
         # Test passes if there are no exceptions
         test_pass_count += 1
         test_count += 1
-        print("TEST PASSED", file=log_file)
+        log_func("TEST PASSED")
 
 
-        print("\r\n\r\n------ Testing Invalid Memory Access Recovery ------", file=log_file)
+        log_func("\r\n\r\n------ Testing Invalid Memory Access Recovery ------")
         memory_access_pass = True
         try:
             target.readBlockMemoryUnaligned8(addr_invalid, 0x1000)
@@ -212,26 +217,26 @@ def cortex_test(board_id, log_file=sys.stdout):
         target.writeBlockMemoryUnaligned8(addr, data)
         block = target.readBlockMemoryUnaligned8(addr, size)
         if same(data, block):
-            print("Aligned access pass", file=log_file)
+            log_func("Aligned access pass")
         else:
-            print("Memory read does not match memory written", file=log_file)
+            log_func("Memory read does not match memory written")
             memory_access_pass = False
 
         data = [randrange(0, 255) for x in range(size)]
         target.writeBlockMemoryUnaligned8(addr + 1, data)
         block = target.readBlockMemoryUnaligned8(addr + 1, size)
         if same(data, block):
-            print("Unaligned access pass", file=log_file)
+            log_func("Unaligned access pass")
         else:
-            print("Unaligned memory read does not match memory written", file=log_file)
+            log_func("Unaligned memory read does not match memory written")
             memory_access_pass = False
 
         test_count += 1
         if memory_access_pass:
             test_pass_count += 1
-            print("TEST PASSED", file=log_file)
+            log_func("TEST PASSED")
         else:
-            print("TEST FAILED", file=log_file)
+            log_func("TEST FAILED")
 
         target.reset()
 

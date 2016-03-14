@@ -50,6 +50,10 @@ def print_summary(test_list, result_list, test_time, output_file=None):
         print("One or more tests has failed!", file=output_file)
 
 
+def default_log(message):
+    print(message)
+
+
 def main():
     log_file = "automated_test_result.txt"
     summary_file = "automated_test_summary.txt"
@@ -73,7 +77,8 @@ def main():
     result_list = []
 
     # Put together list of tests
-    test = Test("Basic Test", lambda board: basic_test(board, None))
+    test = Test("Basic Test",
+                lambda board, log_func: basic_test(board, None, log_func))
     test_list.append(test)
     test_list.append(GdbServerJsonTest())
     test_list.append(SpeedTest())
@@ -91,7 +96,7 @@ def main():
         print("--------------------------")
         for test in test_list:
             test_start = time()
-            result = test.run(board)
+            result = test.run(board, default_log)
             test_stop = time()
             result.time = test_stop - test_start
             result_list.append(result)

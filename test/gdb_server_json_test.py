@@ -47,9 +47,9 @@ class GdbServerJsonTest(Test):
     def print_perf_info(self, result_list, output_file=None):
         pass
 
-    def run(self, board):
+    def run(self, board, log_func):
         try:
-            result = self.test_function(board.getUniqueID())
+            result = self.test_function(board.getUniqueID(), log_func)
         except Exception as e:
             result = GdbServerJsonTestResult()
             result.passed = False
@@ -58,7 +58,12 @@ class GdbServerJsonTest(Test):
         result.test = self
         return result
 
-def gdb_server_json_test(board_id):
+
+def default_log(message):
+    print(message)
+
+
+def gdb_server_json_test(board_id, log_func=default_log):
 
     test_count = 0
     test_pass_count = 0
@@ -66,17 +71,17 @@ def gdb_server_json_test(board_id):
     def validate_basic_keys(data):
         did_pass = True
 
-        print('pyocd_version')
+        log_func('pyocd_version')
         p = data.has_key('pyocd_version')
         if p:
             p = data['pyocd_version'] == __version__
         if p:
-            print("PASSED")
+            log_func("PASSED")
         else:
             did_pass = False
-            print("FAILED")
+            log_func("FAILED")
 
-        print('version')
+        log_func('version')
         p = data.has_key('version')
         if p:
             v = data['version']
@@ -84,35 +89,35 @@ def gdb_server_json_test(board_id):
         if p:
             p = v['major'] == 1 and v['minor'] == 0
         if p:
-            print("PASSED")
+            log_func("PASSED")
         else:
             did_pass = False
-            print("FAILED")
+            log_func("FAILED")
 
-        print('status')
+        log_func('status')
         p = data.has_key('status')
         if p:
             p = data['status'] == 0
         if p:
-            print("PASSED")
+            log_func("PASSED")
         else:
             did_pass = False
-            print("FAILED")
+            log_func("FAILED")
 
         return did_pass
 
     def validate_boards(data):
         did_pass = True
 
-        print('boards')
+        log_func('boards')
         p = data.has_key('boards') and type(data['boards']) is list
         if p:
             b = data['boards']
         if p:
-            print("PASSED")
+            log_func("PASSED")
         else:
             did_pass = False
-            print("FAILED")
+            log_func("FAILED")
 
         try:
             all_mbeds = MbedBoard.getAllConnectedBoards(close=True, blocking=False)
@@ -130,12 +135,12 @@ def gdb_server_json_test(board_id):
                         break
                 p = matching_boards == len(all_mbeds)
             if p:
-                print("PASSED")
+                log_func("PASSED")
             else:
                 did_pass = False
-                print("FAILED")
+                log_func("FAILED")
         except Exception:
-            print("FAILED")
+            log_func("FAILED")
             did_pass = False
 
         return did_pass
@@ -143,7 +148,7 @@ def gdb_server_json_test(board_id):
     def validate_targets(data):
         did_pass = True
 
-        print('targets')
+        log_func('targets')
         p = data.has_key('targets') and type(data['targets']) is list
         if p:
             targets = data['targets']
@@ -152,17 +157,17 @@ def gdb_server_json_test(board_id):
                 if not p:
                     break
         if p:
-            print("PASSED")
+            log_func("PASSED")
         else:
             did_pass = False
-            print("FAILED")
+            log_func("FAILED")
 
         return did_pass
 
 
     result = GdbServerJsonTestResult()
 
-    print("\r\n\r\n----- TESTING BOARDS LIST -----")
+    log_func("\r\n\r\n----- TESTING BOARDS LIST -----")
     out = subprocess.check_output(['pyocd-gdbserver', '--list', '--json'])
     data = json.loads(out)
     test_count += 2
@@ -171,7 +176,7 @@ def gdb_server_json_test(board_id):
     if validate_boards(data):
         test_pass_count += 1
 
-    print("\r\n\r\n----- TESTING TARGETS LIST -----")
+    log_func("\r\n\r\n----- TESTING TARGETS LIST -----")
     out = subprocess.check_output(['pyocd-gdbserver', '--list-targets', '--json'])
     data = json.loads(out)
     test_count += 2

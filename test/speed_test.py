@@ -59,12 +59,12 @@ class SpeedTest(Test):
                   file=output_file)
         print("", file=output_file)
 
-    def run(self, board):
+    def run(self, board, log_func):
         passed = False
         read_speed = None
         write_speed = None
         try:
-            result = self.test_function(board.getUniqueID())
+            result = self.test_function(board.getUniqueID(), log_func)
         except Exception as e:
             print("Exception %s when testing board %s" % (e, board.getUniqueID()))
             result = SpeedTestResult()
@@ -75,7 +75,11 @@ class SpeedTest(Test):
         return result
 
 
-def speed_test(board_id):
+def default_log(message):
+    print(message)
+
+
+def speed_test(board_id, log_func=default_log):
     with MbedBoard.chooseBoard(board_id=board_id, frequency=1000000) as board:
         target_type = board.getTargetType()
 
@@ -104,7 +108,7 @@ def speed_test(board_id):
         link.set_clock(test_clock)
         link.set_deferred_transfer(True)
 
-        print("\r\n\r\n------ TEST RAM READ / WRITE SPEED ------")
+        log_func("\r\n\r\n------ TEST RAM READ / WRITE SPEED ------")
         test_addr = ram_start
         test_size = ram_size
         data = [randrange(1, 50) for x in range(test_size)]
@@ -114,27 +118,27 @@ def speed_test(board_id):
         stop = time()
         diff = stop - start
         result.write_speed = test_size / diff
-        print("Writing %i byte took %s seconds: %s B/s" % (test_size, diff, result.write_speed))
+        log_func("Writing %i byte took %s seconds: %s B/s" % (test_size, diff, result.write_speed))
         start = time()
         block = target.readBlockMemoryUnaligned8(test_addr, test_size)
         target.flush()
         stop = time()
         diff = stop - start
         result.read_speed = test_size / diff
-        print("Reading %i byte took %s seconds: %s B/s" % (test_size, diff, result.read_speed))
+        log_func("Reading %i byte took %s seconds: %s B/s" % (test_size, diff, result.read_speed))
         error = False
         for i in range(len(block)):
             if (block[i] != data[i]):
                 error = True
-                print("ERROR: 0x%X, 0x%X, 0x%X!!!" % ((addr + i), block[i], data[i]))
+                log_func("ERROR: 0x%X, 0x%X, 0x%X!!!" % ((addr + i), block[i], data[i]))
         if error:
-            print("TEST FAILED")
+            log_func("TEST FAILED")
         else:
-            print("TEST PASSED")
+            log_func("TEST PASSED")
             test_pass_count += 1
         test_count += 1
 
-        print("\r\n\r\n------ TEST ROM READ SPEED ------")
+        log_func("\r\n\r\n------ TEST ROM READ SPEED ------")
         test_addr = rom_start
         test_size = rom_size
         start = time()
@@ -142,8 +146,8 @@ def speed_test(board_id):
         target.flush()
         stop = time()
         diff = stop - start
-        print("Reading %i byte took %s seconds: %s B/s" % (test_size, diff, test_size / diff))
-        print("TEST PASSED")
+        log_func("Reading %i byte took %s seconds: %s B/s" % (test_size, diff, test_size / diff))
+        log_func("TEST PASSED")
         test_pass_count += 1
         test_count += 1
 

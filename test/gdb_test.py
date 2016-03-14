@@ -64,9 +64,9 @@ class GdbTest(Test):
     def print_perf_info(self, result_list, output_file=None):
         pass
 
-    def run(self, board):
+    def run(self, board, log_func):
         try:
-            result = self.test_function(board.getUniqueID())
+            result = self.test_function(board.getUniqueID(), log_func)
         except Exception as e:
             result = GdbTestResult()
             result.passed = False
@@ -86,7 +86,11 @@ TEST_RESULT_KEYS = [
 ]
 
 
-def test_gdb(board_id=None):
+def default_log(message):
+    print(message)
+
+
+def test_gdb(board_id=None, log_func=default_log):
     result = GdbTestResult()
     with MbedBoard.chooseBoard(board_id=board_id) as board:
         memory_map = board.target.getMemoryMap()
@@ -142,14 +146,14 @@ def test_gdb(board_id=None):
 
     # Print results
     if set(TEST_RESULT_KEYS).issubset(test_result):
-        print("----------------Test Results----------------")
-        print("HW breakpoint count: %s" % test_result["breakpoint_count"])
-        print("Watchpoint count: %s" % test_result["watchpoint_count"])
-        print("Average instruction step time: %s" %
+        log_func("----------------Test Results----------------")
+        log_func("HW breakpoint count: %s" % test_result["breakpoint_count"])
+        log_func("Watchpoint count: %s" % test_result["watchpoint_count"])
+        log_func("Average instruction step time: %s" %
               test_result["step_time_si"])
-        print("Average single step time: %s" % test_result["step_time_s"])
-        print("Average over step time: %s" % test_result["step_time_n"])
-        print("Failure count: %i" % test_result["fail_count"])
+        log_func("Average single step time: %s" % test_result["step_time_s"])
+        log_func("Average over step time: %s" % test_result["step_time_n"])
+        log_func("Failure count: %i" % test_result["fail_count"])
         result.passed = test_result["fail_count"] == 0
     else:
         result.passed = False
