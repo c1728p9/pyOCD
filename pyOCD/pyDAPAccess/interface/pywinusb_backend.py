@@ -75,7 +75,7 @@ class PyWinUSB(Interface):
         boards = []
         for dev in all_mbed_devices:
             try:
-                dev.open(shared=False)
+                dev.open(shared=True)
                 report = dev.find_output_reports()
                 if (len(report) == 1):
                     new_board = PyWinUSB()
@@ -91,9 +91,22 @@ class PyWinUSB(Interface):
                     boards.append(new_board)
             except Exception as e:
                 logging.error("Receiving Exception: %s", e)
+            finally:
                 dev.close()
 
         return boards
+
+    @staticmethod
+    def getInterface(unique_id):
+        interface_list = PyWinUSB.getAllConnectedInterface()
+        cur_intf = None
+        for interface in interface_list:
+            if interface.serial_number == unique_id:
+                # This assert could indicate that two boards
+                # have the same ID
+                assert cur_intf is None
+                cur_intf = interface
+        return cur_intf
 
     def write(self, data):
         """

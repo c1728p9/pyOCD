@@ -18,22 +18,33 @@
 
 class Interface(object):
 
+    @staticmethod
+    def getAllConnectedInterface():
+        """Get a closed handle to every interface"""
+        raise NotImplementedError()
+
+    @staticmethod
+    def getInterface(unique_id):
+        """Get a closed handle to the specified interface"""
+        raise NotImplementedError()
+
     def __init__(self):
         self.vid = 0
         self.pid = 0
         self.vendor_name = ""
         self.product_name = ""
         self.packet_count = 1
+        self.serial_number = None
         return
 
-    def init(self):
-        return
+    def open(self):
+        raise NotImplementedError()
 
     def write(self, data):
-        return
+        raise NotImplementedError()
 
     def read(self, size=-1, timeout=-1):
-        return
+        raise NotImplementedError()
 
     def getInfo(self):
         return self.vendor_name + " " + \
@@ -50,3 +61,7 @@ class Interface(object):
 
     def close(self):
         return
+
+    def getSerialNumber(self):
+        """Get the serial number of this interface"""
+        return self.serial_number

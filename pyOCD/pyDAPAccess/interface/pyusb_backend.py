@@ -63,6 +63,10 @@ class PyUSB(Interface):
                 # timeout is set to infinite.
                 self.rcv_data.append(self.ep_in.read(self.ep_in.wMaxPacketSize, -1))
 
+    #TODO
+    #claim_interface
+    #release_interface
+
     @staticmethod
     def getAllConnectedInterface():
         """
