@@ -121,6 +121,10 @@ class DAPAccessIntf(object):
         """Connect to target with JTAG or SWD"""
         raise NotImplementedError()
 
+    def swj_sequence(self):
+        """Send seqeunce to activate JTAG or SWD on the target"""
+        raise NotImplementedError()
+
     def disconnect(self):
         """Disconnect from target"""
         raise NotImplementedError()
