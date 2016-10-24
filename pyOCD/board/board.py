@@ -65,22 +65,22 @@ class Board(object):
                 self.target.resume()
             except:
                 logging.error("target exception during uninit:")
-                traceback.print_exc()
+                #traceback.print_exc()
         try:
             self.target.disconnect()
         except:
             logging.error("link exception during target disconnect:")
-            traceback.print_exc()
+            #traceback.print_exc()
         try:
             self.link.disconnect()
         except:
             logging.error("link exception during link disconnect:")
-            traceback.print_exc()
+            #traceback.print_exc()
         try:
             self.link.close()
         except:
             logging.error("link exception during uninit:")
-            traceback.print_exc()
+            #traceback.print_exc()
 
     def getInfo(self):
         return ""
