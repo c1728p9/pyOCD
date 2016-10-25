@@ -75,20 +75,21 @@ class PyWinUSB(Interface):
         boards = []
         for dev in all_mbed_devices:
             try:
-                dev.open(shared=False)
+                dev.open(shared=True)
                 report = dev.find_output_reports()
-                if (len(report) == 1):
-                    new_board = PyWinUSB()
-                    new_board.report = report[0]
-                    new_board.vendor_name = dev.vendor_name
-                    new_board.product_name = dev.product_name
-                    new_board.serial_number = dev.serial_number
-                    new_board.vid = dev.vendor_id
-                    new_board.pid = dev.product_id
-                    new_board.device = dev
-                    new_board.device.set_raw_data_handler(new_board.rx_handler)
-
-                    boards.append(new_board)
+                if len(report) != 1:
+                    dev.close()
+                    continue
+                new_board = PyWinUSB()
+                new_board.report = report[0]
+                new_board.vendor_name = dev.vendor_name
+                new_board.product_name = dev.product_name
+                new_board.serial_number = dev.serial_number
+                new_board.vid = dev.vendor_id
+                new_board.pid = dev.product_id
+                new_board.device = dev
+                dev.close()
+                boards.append(new_board)
             except Exception as e:
                 logging.error("Receiving Exception: %s", e)
                 dev.close()
