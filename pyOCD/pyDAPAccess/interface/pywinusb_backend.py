@@ -20,7 +20,7 @@ import logging, os, collections
 from time import time
 from ..dap_access_api import DAPAccessIntf
 
-OPEN_TIMEOUT_S = 2.0
+OPEN_TIMEOUT_S = 60.0
 
 try:
     import pywinusb.hid as hid
@@ -66,20 +66,33 @@ class PyWinUSB(Interface):
         # other instances of pyOCD listing board can prevent
         # opening this device with exclusive access.
         start = time()
-        open_success = False
         while True:
+
+            # Attempt to open the device
             try:
                 self.device.open(shared=False)
-                open_success = True
                 break
             except hid.HIDError:
                 pass
+
+            # Attempt to open the device in shared mode to make
+            # sure it is still there
+            try:
+                self.device.open(shared=True)
+                self.device.close()
+            except hid.HIDError:
+                # If the device could not be opened in read only mode
+                # Then it either has been disconnected or is in use
+                # by another thread/process
+                raise DAPAccessIntf.DeviceError("Unable to open device")
+
             if time() - start > OPEN_TIMEOUT_S:
+                # If this timeout has elapsed then another process
+                # has locked this device in shared mode. This should
+                # not happen.
+                assert False
                 break
 
-        # Raise an exception if this device could not be opened
-        if not open_success:
-            raise DAPAccessIntf.DeviceError("Unable to open device")
 
     @staticmethod
     def getAllConnectedInterface():

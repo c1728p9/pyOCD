@@ -422,7 +422,8 @@ class DAPAccessCMSISDAP(DAPAccessIntf):
                     logger = logging.getLogger(__name__)
                     logger.error('Failed to get unique id for open',
                                  exc_info=True)
-            assert self._interface is not None, "Could not open daplink, not found"
+            if self._interface is None:
+                raise DAPAccessIntf.DeviceError("Unable to open device")
 
         self._interface.open()
         self._protocol = CMSIS_DAP_Protocol(self._interface)
