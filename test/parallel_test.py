@@ -33,14 +33,28 @@ from pyOCD.pyDAPAccess import DAPAccess
 import threading
 
 
-def run_in_parallel(function, args_list):
+def run_in_parallel(function, args_list):\
+    # TODO - handle error codes
     thread_list = []
     for args in args_list:
         thread = threading.Thread(target=function, args=args)
         thread.start()
         thread_list.append(thread)
+
     for thread in thread_list:
         thread.join()
+
+#        code = []
+#        for threadId, stack in sys._current_frames().items():
+#            code.append("\n# ThreadID: %s" % threadId)
+#            for filename, lineno, name, line in traceback.extract_stack(stack):
+#                code.append('File: "%s", line %d, in %s' % (filename,
+#                                                            lineno, name))
+#                if line:
+#                    code.append("  %s" % (line.strip()))
+#        for line in code:
+#            print(line)
+#        print("\n*** STACKTRACE - END ***\n")
 
 
 def list_boards(id_list):
@@ -48,26 +62,43 @@ def list_boards(id_list):
         device_list = DAPAccess.get_connected_devices()
         found_id_list = [device.get_unique_id() for device in device_list]
         found_id_list.sort()
-        assert id_list == found_id_list, "Expected %s, got %s" % (id_list, found_id_list)
+        assert id_list == found_id_list, "Expected %s, got %s" % \
+            (id_list, found_id_list)
+
 
 def search_and_lock(board_id):
-    for _ in range(0, 20):
+    for _ in range(0, 200):
         device = DAPAccess.get_device(board_id)
         device.open()
         device.close()
+        with MbedBoard.chooseBoard(board_id=board_id) as board:
+            pass
+
+
+def open_already_opened(board_id):
+    device = DAPAccess.get_device(board_id)
+    try:
+        device.open()
+        assert False
+    except DAPAccess.DeviceError:
+        pass
 
 
 def parallel_test():
     device_list = DAPAccess.get_connected_devices()
-
-    print("Devices: %s" % device_list)
-    for _ in range(0, 10):
-        device_list[0].open()
-        device_list[0].close()
-
     id_list = [device.get_unique_id() for device in device_list]
     id_list.sort()
-    
+
+    if len(id_list) < 2:
+        print("Need at least 2 boards to run the parallel test")
+        exit(-1)
+
+    # -The process of listing available boards does not interfere
+    #  with other processes enumerating, opening, or using boards
+    # -Opening and using a board does not interfere with another process
+    #  processes which is enumerating, opening, or using boards as
+    # long as that is not the current board
+
     # List boards in multple threads
     args_list = [(id_list,) for _ in range(5)]
     run_in_parallel(list_boards, args_list)
@@ -75,94 +106,22 @@ def parallel_test():
     # List boards in multiple processes
 
     # Open same board in multiple threads - make sure error is graceful
+    device = DAPAccess.get_device(id_list[0])
+    device.open()
+    open_already_opened(id_list[0])
+    args_list = [(id_list[0],) for _ in range(5)]
+    run_in_parallel(open_already_opened, args_list)
+    device.close()
+
 
     # Open same board in multiple processes - make sure error is graceful
 
     # Repeatedly open an close one board per thread - make sure there are no collisions
     args_list = [(board_id,) for board_id in id_list]
     run_in_parallel(search_and_lock, args_list)
-    
+
     # Repeately open and close one board per process -  make sure there are no collisions
 
-#     
-#     with MbedBoard.chooseBoard(board_id=board_id, frequency=1000000) as board:
-#         target_type = board.getTargetType()
-# 
-#         test_clock = 10000000
-#         if target_type == "nrf51":
-#             # Override clock since 10MHz is too fast
-#             test_clock = 1000000
-#         if target_type == "ncs36510":
-#             # Override clock since 10MHz is too fast
-#             test_clock = 1000000
-# 
-#         memory_map = board.target.getMemoryMap()
-#         ram_regions = [region for region in memory_map if region.type == 'ram']
-#         ram_region = ram_regions[0]
-#         rom_region = memory_map.getBootMemory()
-# 
-#         ram_start = ram_region.start
-#         ram_size = ram_region.length
-#         rom_start = rom_region.start
-#         rom_size = rom_region.length
-# 
-#         target = board.target
-#         link = board.link
-# 
-#         test_pass_count = 0
-#         test_count = 0
-#         result = SpeedTestResult()
-# 
-#         link.set_clock(test_clock)
-#         link.set_deferred_transfer(True)
-# 
-#         print("\r\n\r\n------ TEST RAM READ / WRITE SPEED ------")
-#         test_addr = ram_start
-#         test_size = ram_size
-#         data = [randrange(1, 50) for x in range(test_size)]
-#         start = time()
-#         target.writeBlockMemoryUnaligned8(test_addr, data)
-#         target.flush()
-#         stop = time()
-#         diff = stop - start
-#         result.write_speed = test_size / diff
-#         print("Writing %i byte took %s seconds: %s B/s" % (test_size, diff, result.write_speed))
-#         start = time()
-#         block = target.readBlockMemoryUnaligned8(test_addr, test_size)
-#         target.flush()
-#         stop = time()
-#         diff = stop - start
-#         result.read_speed = test_size / diff
-#         print("Reading %i byte took %s seconds: %s B/s" % (test_size, diff, result.read_speed))
-#         error = False
-#         for i in range(len(block)):
-#             if (block[i] != data[i]):
-#                 error = True
-#                 print("ERROR: 0x%X, 0x%X, 0x%X!!!" % ((addr + i), block[i], data[i]))
-#         if error:
-#             print("TEST FAILED")
-#         else:
-#             print("TEST PASSED")
-#             test_pass_count += 1
-#         test_count += 1
-# 
-#         print("\r\n\r\n------ TEST ROM READ SPEED ------")
-#         test_addr = rom_start
-#         test_size = rom_size
-#         start = time()
-#         block = target.readBlockMemoryUnaligned8(test_addr, test_size)
-#         target.flush()
-#         stop = time()
-#         diff = stop - start
-#         print("Reading %i byte took %s seconds: %s B/s" % (test_size, diff, test_size / diff))
-#         print("TEST PASSED")
-#         test_pass_count += 1
-#         test_count += 1
-# 
-#         target.reset()
-# 
-#         result.passed = test_count == test_pass_count
-#         return result
 
 if __name__ == "__main__":
     parallel_test()
