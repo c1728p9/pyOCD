@@ -18,6 +18,9 @@
 from interface import Interface
 import logging, os, collections
 from time import time
+from ..dap_access_api import DAPAccessIntf
+
+OPEN_TIMEOUT_S = 2.0
 
 try:
     import pywinusb.hid as hid
@@ -57,7 +60,26 @@ class PyWinUSB(Interface):
 
     def open(self):
         self.device.set_raw_data_handler(self.rx_handler)
-        self.device.open(shared=False)
+
+        # Attempt to open the device.
+        # Note - this operation must be retried since
+        # other instances of pyOCD listing board can prevent
+        # opening this device with exclusive access.
+        start = time()
+        open_success = False
+        while True:
+            try:
+                self.device.open(shared=False)
+                open_success = True
+                break
+            except hid.HIDError:
+                pass
+            if time() - start > OPEN_TIMEOUT_S:
+                break
+
+        # Raise an exception if this device could not be opened
+        if not open_success:
+            raise DAPAccessIntf.DeviceError("Unable to open device")
 
     @staticmethod
     def getAllConnectedInterface():

@@ -362,7 +362,7 @@ class DAPAccessCMSISDAP(DAPAccessIntf):
 
     @staticmethod
     def get_device(device_id):
-        assert isinstance(device_id, str)
+        assert isinstance(device_id, six.string_types)
         return DAPAccessCMSISDAP(device_id)
 
     @staticmethod

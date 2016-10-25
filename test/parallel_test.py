@@ -33,9 +33,9 @@ from pyOCD.pyDAPAccess import DAPAccess
 import threading
 
 
-def run_in_parallel(function, args, count):
+def run_in_parallel(function, args_list):
     thread_list = []
-    for _ in range(count):
+    for args in args_list:
         thread = threading.Thread(target=function, args=args)
         thread.start()
         thread_list.append(thread)
@@ -50,6 +50,12 @@ def list_boards(id_list):
         found_id_list.sort()
         assert id_list == found_id_list, "Expected %s, got %s" % (id_list, found_id_list)
 
+def search_and_lock(board_id):
+    for _ in range(0, 20):
+        device = DAPAccess.get_device(board_id)
+        device.open()
+        device.close()
+
 
 def parallel_test():
     device_list = DAPAccess.get_connected_devices()
@@ -63,7 +69,8 @@ def parallel_test():
     id_list.sort()
     
     # List boards in multple threads
-    run_in_parallel(list_boards, (id_list,), 5)
+    args_list = [(id_list,) for _ in range(5)]
+    run_in_parallel(list_boards, args_list)
 
     # List boards in multiple processes
 
@@ -72,6 +79,8 @@ def parallel_test():
     # Open same board in multiple processes - make sure error is graceful
 
     # Repeatedly open an close one board per thread - make sure there are no collisions
+    args_list = [(board_id,) for board_id in id_list]
+    run_in_parallel(search_and_lock, args_list)
     
     # Repeately open and close one board per process -  make sure there are no collisions
 
