@@ -126,7 +126,8 @@ class PyWinUSB(Interface):
                 dev.close()
                 boards.append(new_board)
             except Exception as e:
-                logging.error("Receiving Exception: %s", e)
+                if (str(e) != "Failure to get HID pre parsed data"):
+                    logging.error("Receiving Exception: %s", e)
                 dev.close()
 
         return boards
