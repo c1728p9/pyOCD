@@ -143,7 +143,7 @@ class PyWinUSB(Interface):
         return
 
 
-    def read(self, timeout=1.0):
+    def read(self, timeout=20.0):
         """
         read data on the IN endpoint associated to the HID interface
         """
