@@ -432,7 +432,7 @@ class DAPAccessCMSISDAP(DAPAccessIntf):
         self._protocol = CMSIS_DAP_Protocol(self._interface)
         self._packet_count = self._protocol.dapInfo("PACKET_COUNT")
         self._interface.setPacketCount(self._packet_count)
-        self._packet_size = 64
+        self._packet_size = 60
 
         self._init_deferred_buffers()
 

@@ -48,6 +48,8 @@ class PyWinUSB(Interface):
         # comprable to a based list implmentation.
         self.rcv_data = collections.deque()
         self.device = None
+        self.tx_cnt = 0
+        self.rx_cnt = 0
         return
 
     # handler called when a report is received
@@ -101,6 +103,12 @@ class PyWinUSB(Interface):
         """
         for _ in range(64 - len(data)):
             data.append(0)
+        data[-4] = (self.tx_cnt >> (8 * 3)) & 0xFF
+        data[-3] = (self.tx_cnt >> (8 * 2)) & 0xFF
+        data[-2] = (self.tx_cnt >> (8 * 1)) & 0xFF
+        data[-1] = (self.tx_cnt >> (8 * 0)) & 0xFF
+        self.tx_cnt = (self.tx_cnt + 1) & 0xFFFFFFFF
+
         #logging.debug("send: %s", data)
         self.report.send([0] + data)
         return
@@ -120,8 +128,17 @@ class PyWinUSB(Interface):
                 # 2. CMSIS-DAP firmware problem cause a dropped read or write
                 # 3. CMSIS-DAP is performing a long operation or is being
                 #    halted in a debugger
+                print("RX count: %i" % self.rx_cnt)
+                print("TX count: %i" % self.rx_cnt)
                 raise Exception("Read timed out")
-        return self.rcv_data.popleft()
+        data = self.rcv_data.popleft()
+        count = (((data[60] & 0xFF) << (8 * 3)) |
+                 ((data[61] & 0xFF) << (8 * 2)) |
+                 ((data[62] & 0xFF) << (8 * 1)) |
+                 ((data[63] & 0xFF) << (8 * 0)))
+        #assert count == self.rx_cnt
+        self.rx_cnt = (self.rx_cnt + 1) & 0xFFFFFFFF
+        return data
 
     def setPacketCount(self, count):
         # No interface level restrictions on count
