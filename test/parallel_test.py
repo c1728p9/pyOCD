@@ -16,25 +16,14 @@
 """
 from __future__ import print_function
 
-import os, sys
-from time import sleep, time
-from random import randrange
-import traceback
-import argparse
-
-parentdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, parentdir)
-
-import pyOCD
 from pyOCD.board import MbedBoard
-from test_util import Test, TestResult
-import logging
 from pyOCD.pyDAPAccess import DAPAccess
 import threading
+import multiprocessing
 
 
-def run_in_parallel(function, args_list):\
-    # TODO - handle error codes
+def run_in_parallel(function, args_list):
+    #TODO - handle errors
     thread_list = []
     for args in args_list:
         thread = threading.Thread(target=function, args=args)
@@ -44,17 +33,21 @@ def run_in_parallel(function, args_list):\
     for thread in thread_list:
         thread.join()
 
-#        code = []
-#        for threadId, stack in sys._current_frames().items():
-#            code.append("\n# ThreadID: %s" % threadId)
-#            for filename, lineno, name, line in traceback.extract_stack(stack):
-#                code.append('File: "%s", line %d, in %s' % (filename,
-#                                                            lineno, name))
-#                if line:
-#                    code.append("  %s" % (line.strip()))
-#        for line in code:
-#            print(line)
-#        print("\n*** STACKTRACE - END ***\n")
+
+def run_in_processes(function, args_list):
+    process_list = []
+    for args in args_list:
+        process = multiprocessing.Process(target=function, args=args)
+        process.start()
+        process_list.append(process)
+
+    error_during_run = False
+    for process in process_list:
+        process.join()
+        if process.exitcode != 0:
+            error_during_run = True
+    if error_during_run:
+        raise Exception("Running in process failed")
 
 
 def list_boards(id_list):
@@ -67,11 +60,11 @@ def list_boards(id_list):
 
 
 def search_and_lock(board_id):
-    for _ in range(0, 200):
+    for _ in range(0, 20):
         device = DAPAccess.get_device(board_id)
         device.open()
         device.close()
-        with MbedBoard.chooseBoard(board_id=board_id) as board:
+        with MbedBoard.chooseBoard(board_id=board_id):
             pass
 
 
@@ -93,19 +86,21 @@ def parallel_test():
         print("Need at least 2 boards to run the parallel test")
         exit(-1)
 
+    # Goal of this file is to test that:
     # -The process of listing available boards does not interfere
     #  with other processes enumerating, opening, or using boards
     # -Opening and using a board does not interfere with another process
     #  processes which is enumerating, opening, or using boards as
     # long as that is not the current board
 
-    # List boards in multple threads
+    print("Listing board from multiple threads at the same time")
     args_list = [(id_list,) for _ in range(5)]
     run_in_parallel(list_boards, args_list)
 
-    # List boards in multiple processes
+    print("Listing board from multiple processes at the same time")
+    run_in_processes(list_boards, args_list)
 
-    # Open same board in multiple threads - make sure error is graceful
+    print("Opening same board from multiple threads at the same time")
     device = DAPAccess.get_device(id_list[0])
     device.open()
     open_already_opened(id_list[0])
@@ -113,14 +108,20 @@ def parallel_test():
     run_in_parallel(open_already_opened, args_list)
     device.close()
 
+    print("Opening same board from multiple processes at the same time")
+    device = DAPAccess.get_device(id_list[0])
+    device.open()
+    open_already_opened(id_list[0])
+    args_list = [(id_list[0],) for _ in range(5)]
+    run_in_processes(open_already_opened, args_list)
+    device.close()
 
-    # Open same board in multiple processes - make sure error is graceful
-
-    # Repeatedly open an close one board per thread - make sure there are no collisions
+    print("Opening different boards from different threads")
     args_list = [(board_id,) for board_id in id_list]
     run_in_parallel(search_and_lock, args_list)
 
-    # Repeately open and close one board per process -  make sure there are no collisions
+    print("Opening different boards from different processes")
+    run_in_processes(search_and_lock, args_list)
 
 
 if __name__ == "__main__":
