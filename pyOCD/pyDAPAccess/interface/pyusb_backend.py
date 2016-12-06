@@ -216,6 +216,10 @@ def _dap_match(dev):
         return False
     except usb.core.USBError as error:
         logging.warning("Exception getting product string: %s", error)
+        return False
+    except IndexError as error:
+        logging.warning("Internal pyusb error: %s", error)
+        return False
     if device_string is None:
         return False
     if device_string.find("CMSIS-DAP") < 0:
