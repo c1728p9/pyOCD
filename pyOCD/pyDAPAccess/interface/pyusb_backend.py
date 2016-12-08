@@ -45,15 +45,15 @@ class PyUSB(Interface):
         self.ep_in = None
         self.dev = None
         self.intf_number = None
+        self.serial_number = None
         self.kernel_driver_was_attached = False
         self.closed = True
+        self.thread = None
         self.rcv_data = []
         self.read_sem = threading.Semaphore(0)
 
     def open(self):
-        if self.dev is not None:
-            raise DAPAccessIntf.DeviceError("Device %s already open" %
-                                            self.serial_number)
+        assert self.closed is True
 
         # Get device handle
         dev = usb.core.find(custom_match=FindDap(self.serial_number))
@@ -65,22 +65,23 @@ class PyUSB(Interface):
         config = dev.get_active_configuration()
 
         # Get hid interface
+        interface = None
         interface_number = None
         for interface in config:
             if interface.bInterfaceClass == 0x03:
                 interface_number = interface.bInterfaceNumber
                 break
-        if interface_number is None:
+        if interface_number is None or interface is None:
             raise DAPAccessIntf.DeviceError("Device %s has no hid interface" %
                                             self.serial_number)
 
         # Find endpoints
         ep_in, ep_out = None, None
-        for ep in interface:
-            if ep.bEndpointAddress & 0x80:
-                ep_in = ep
+        for endpoint in interface:
+            if endpoint.bEndpointAddress & 0x80:
+                ep_in = endpoint
             else:
-                ep_out = ep
+                ep_out = endpoint
 
         # If there is no EP for OUT then we can use CTRL EP.
         # The IN EP is required
@@ -207,6 +208,8 @@ class PyUSB(Interface):
         """
         close the interface
         """
+        assert self.closed is False
+
         logging.debug("closing interface")
         self.closed = True
         self.read_sem.release()
@@ -215,15 +218,16 @@ class PyUSB(Interface):
         if self.kernel_driver_was_attached:
             try:
                 self.dev.attach_kernel_driver(self.intf_number)
-            except Exception as e:
-                logging.warning('Exception attaching kernel driver: %s' %
-                                str(e))
+            except Exception as exception:
+                logging.warning('Exception attaching kernel driver: %s',
+                                str(exception))
         usb.util.dispose_resources(self.dev)
         self.ep_out = None
         self.ep_in = None
         self.dev = None
         self.intf_number = None
         self.kernel_driver_was_attached = False
+        self.thread = None
 
 
 class FindDap(object):
