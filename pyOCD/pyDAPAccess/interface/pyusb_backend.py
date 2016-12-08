@@ -132,12 +132,16 @@ class PyUSB(Interface):
         self.thread.start()
 
     def rx_task(self):
-        while not self.closed:
-            self.read_sem.acquire()
-            if not self.closed:
-                # Timeouts appear to corrupt data occasionally.  Because of this the
-                # timeout is set to infinite.
-                self.rcv_data.append(self.ep_in.read(self.ep_in.wMaxPacketSize, -1))
+        try:
+            while not self.closed:
+                self.read_sem.acquire()
+                if not self.closed:
+                    # Timeouts appear to corrupt data occasionally.  Because of this the
+                    # timeout is set to infinite.
+                    self.rcv_data.append(self.ep_in.read(self.ep_in.wMaxPacketSize, 10 * 1000))
+        finally:
+            # Set last element of rcv_data to None on exit
+            self.rcv_data.append(None)
 
     @staticmethod
     def getAllConnectedInterface():
@@ -195,6 +199,9 @@ class PyUSB(Interface):
         """
         while len(self.rcv_data) == 0:
             pass
+        if self.rcv_data[0] is None:
+            raise DAPAccessIntf.DeviceError("Device %s read thread exited" %
+                                            self.serial_number)
         return self.rcv_data.pop(0)
 
     def setPacketCount(self, count):
@@ -214,6 +221,8 @@ class PyUSB(Interface):
         self.closed = True
         self.read_sem.release()
         self.thread.join()
+        assert self.rcv_data[-1] is None
+        self.rcv_data = []
         usb.util.release_interface(self.dev, self.intf_number)
         if self.kernel_driver_was_attached:
             try:
