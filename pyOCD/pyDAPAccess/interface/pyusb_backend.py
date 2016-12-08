@@ -29,6 +29,7 @@ except:
 else:
     isAvailable = True
 
+
 class PyUSB(Interface):
     """
     This class provides basic functions to access
@@ -44,26 +45,74 @@ class PyUSB(Interface):
         self.ep_in = None
         self.dev = None
         self.intf_number = None
-        self.serial_number = None
         self.kernel_driver_was_attached = False
         self.closed = True
         self.rcv_data = []
         self.read_sem = threading.Semaphore(0)
 
     def open(self):
-        assert self.closed is True
+        if self.dev is not None:
+            raise DAPAccessIntf.DeviceError("Device %s already open" %
+                                            self.serial_number)
+
+        # Get device handle
+        dev = usb.core.find(custom_match=FindDap(self.serial_number))
+        if dev is None:
+            raise DAPAccessIntf.DeviceError("Device %s not found" %
+                                            self.serial_number)
+
+        # get active config
+        config = dev.get_active_configuration()
+
+        # Get hid interface
+        interface_number = None
+        for interface in config:
+            if interface.bInterfaceClass == 0x03:
+                interface_number = interface.bInterfaceNumber
+                break
+        if interface_number is None:
+            raise DAPAccessIntf.DeviceError("Device %s has no hid interface" %
+                                            self.serial_number)
+
+        # Find endpoints
+        ep_in, ep_out = None, None
+        for ep in interface:
+            if ep.bEndpointAddress & 0x80:
+                ep_in = ep
+            else:
+                ep_out = ep
+
+        # If there is no EP for OUT then we can use CTRL EP.
+        # The IN EP is required
+        if not ep_in:
+            raise DAPAccessIntf.DeviceError("Unable to open device -"
+                                            " no endpoints")
+
+        # Detach kernel driver
+        kernel_driver_was_attached = False
         try:
-            if self.dev.is_kernel_driver_active(self.intf_number):
-                self.dev.detach_kernel_driver(self.intf_number)
-                self.kernel_driver_was_attached = True
+            if dev.is_kernel_driver_active(interface_number):
+                dev.detach_kernel_driver(interface_number)
+                kernel_driver_was_attached = True
         except NotImplementedError as e:
             # Some implementations don't don't have kernel attach/detach
             logging.debug('Exception detaching kernel driver: %s' %
                           str(e))
+
+        # Explicitly claim the interface
         try:
-            usb.util.claim_interface(self.dev, self.intf_number)
+            usb.util.claim_interface(dev, interface_number)
         except usb.core.USBError:
             raise DAPAccessIntf.DeviceError("Unable to open device")
+
+        # Update all class variables if we made it here
+        self.ep_out = ep_out
+        self.ep_in = ep_in
+        self.dev = dev
+        self.intf_number = interface_number
+        self.kernel_driver_was_attached = kernel_driver_was_attached
+
+        # Start RX thread as the last step
         self.closed = False
         self.start_rx()
 
@@ -95,51 +144,16 @@ class PyUSB(Interface):
         returns all the connected devices which matches PyUSB.vid/PyUSB.pid.
         returns an array of PyUSB (Interface) objects
         """
-        # find all devices matching the vid/pid specified
-        all_devices = usb.core.find(find_all=True, custom_match=_dap_match)
+        # find all cmsis-dap devices
+        all_devices = usb.core.find(find_all=True, custom_match=FindDap())
 
         # iterate on all devices found
         boards = []
         for board in all_devices:
-            interface_number = -1
-            product = board.product
-
-            # get active config
-            config = board.get_active_configuration()
-
-            # iterate on all interfaces:
-            #    - if we found a HID interface -> CMSIS-DAP
-            for interface in config:
-                if interface.bInterfaceClass == 0x03:
-                    interface_number = interface.bInterfaceNumber
-                    break
-
-            if interface_number == -1:
-                logging.error('Interface not found')
-                # Skip this board
-                continue
-
-            ep_in, ep_out = None, None
-            for ep in interface:
-                if ep.bEndpointAddress & 0x80:
-                    ep_in = ep
-                else:
-                    ep_out = ep
-
-            # If there is no EP for OUT then we can use CTRL EP
-            if not ep_in:
-                logging.error('Endpoints not found')
-                # Skip this board
-                continue
-
             new_board = PyUSB()
-            new_board.ep_in = ep_in
-            new_board.ep_out = ep_out
-            new_board.dev = board
             new_board.vid = board.idVendor
             new_board.pid = board.idProduct
-            new_board.intf_number = interface_number
-            new_board.product_name = product
+            new_board.product_name = board.product
             new_board.vendor_name = board.manufacturer
             new_board.serial_number = board.serial_number
             boards.append(new_board)
@@ -173,6 +187,7 @@ class PyUSB(Interface):
         #logging.debug('sent: %s', data)
         return
 
+
     def read(self):
         """
         read data on the IN endpoint associated to the HID interface
@@ -192,7 +207,6 @@ class PyUSB(Interface):
         """
         close the interface
         """
-        assert self.closed is False
         logging.debug("closing interface")
         self.closed = True
         self.read_sem.release()
@@ -205,23 +219,38 @@ class PyUSB(Interface):
                 logging.warning('Exception attaching kernel driver: %s' %
                                 str(e))
         usb.util.dispose_resources(self.dev)
+        self.ep_out = None
+        self.ep_in = None
+        self.dev = None
+        self.intf_number = None
+        self.kernel_driver_was_attached = False
 
 
-def _dap_match(dev):
-    """CMSIS-DAP match function to be used with usb.core.find"""
-    try:
-        device_string = dev.product
-    except ValueError:
-        # Permission denied error gets reported as ValueError (langid)
-        return False
-    except usb.core.USBError as error:
-        logging.warning("Exception getting product string: %s", error)
-        return False
-    except IndexError as error:
-        logging.warning("Internal pyusb error: %s", error)
-        return False
-    if device_string is None:
-        return False
-    if device_string.find("CMSIS-DAP") < 0:
-        return False
-    return True
+class FindDap(object):
+    """CMSIS-DAP match class to be used with usb.core.find"""
+
+    def __init__(self, serial=None):
+        """Create a new FindDap object with an optional serial number"""
+        self._serial = serial
+
+    def __call__(self, dev):
+        """Return True if this is a DAP device, False otherwise"""
+        try:
+            device_string = dev.product
+        except ValueError:
+            # Permission denied error gets reported as ValueError (langid)
+            return False
+        except usb.core.USBError as error:
+            logging.warning("Exception getting product string: %s", error)
+            return False
+        except IndexError as error:
+            logging.warning("Internal pyusb error: %s", error)
+            return False
+        if device_string is None:
+            return False
+        if device_string.find("CMSIS-DAP") < 0:
+            return False
+        if self._serial is not None:
+            if self._serial != dev.serial_number:
+                return False
+        return True
