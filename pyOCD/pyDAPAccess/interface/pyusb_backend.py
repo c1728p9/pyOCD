@@ -48,9 +48,7 @@ class PyUSB(Interface):
         self.serial_number = None
         self.kernel_driver_was_attached = False
         self.closed = True
-        self.thread = None
         self.rcv_data = []
-        self.read_sem = threading.Semaphore(0)
 
     def open(self):
         assert self.closed is True
@@ -126,19 +124,6 @@ class PyUSB(Interface):
             # USB timeout expected
             pass
 
-        # Start RX thread
-        self.thread = threading.Thread(target=self.rx_task)
-        self.thread.daemon = True
-        self.thread.start()
-
-    def rx_task(self):
-        while not self.closed:
-            self.read_sem.acquire()
-            if not self.closed:
-                # Timeouts appear to corrupt data occasionally.  Because of this the
-                # timeout is set to infinite.
-                self.rcv_data.append(self.ep_in.read(self.ep_in.wMaxPacketSize, -1))
-
     @staticmethod
     def getAllConnectedInterface():
         """
@@ -173,8 +158,6 @@ class PyUSB(Interface):
         for _ in range(report_size - len(data)):
             data.append(0)
 
-        self.read_sem.release()
-
         if not self.ep_out:
             bmRequestType = 0x21              #Host to device request of type Class of Recipient Interface
             bmRequest = 0x09              #Set_REPORT (HID class-specific request for transferring data over EP0)
@@ -193,9 +176,7 @@ class PyUSB(Interface):
         """
         read data on the IN endpoint associated to the HID interface
         """
-        while len(self.rcv_data) == 0:
-            pass
-        return self.rcv_data.pop(0)
+        return self.ep_in.read(self.ep_in.wMaxPacketSize, 60 * 1000)
 
     def setPacketCount(self, count):
         # No interface level restrictions on count
@@ -212,8 +193,6 @@ class PyUSB(Interface):
 
         logging.debug("closing interface")
         self.closed = True
-        self.read_sem.release()
-        self.thread.join()
         usb.util.release_interface(self.dev, self.intf_number)
         if self.kernel_driver_was_attached:
             try:
@@ -227,7 +206,6 @@ class PyUSB(Interface):
         self.dev = None
         self.intf_number = None
         self.kernel_driver_was_attached = False
-        self.thread = None
 
 
 class FindDap(object):
