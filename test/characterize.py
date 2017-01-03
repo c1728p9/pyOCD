@@ -86,6 +86,11 @@ DEMCR_VC_HARDERR = (1 << 10)
 DEMCR_VC_BUSERR = (1 << 8)
 DEMCR_VC_CORERESET = (1 << 0)
 
+DHCSR = 0xE000EDF0
+C_DEBUGEN = (1 << 0)
+C_HALT = (1 << 1)
+DBGKEY = (0xA05F << 16)
+
 TEST_FREQUENCIES = [
     100,                # 100 Hz
     1000,               # 1 KHz
@@ -147,7 +152,7 @@ def mem_test(board):
         ap.write32(NVIC_AIRCR, NVIC_AIRCR_VECTKEY | NVIC_AIRCR_SYSRESETREQ)
     except DAPAccess.TransferError:
         pass
-    dp.init()
+    #dp.init()
     cpu_id = ap.read32(0xE000ED00)
     print("CPU ID after SYSRESETREQ: 0x%x" % cpu_id)
 
@@ -184,10 +189,6 @@ def mem_test(board):
     ap = pyOCD.coresight.ap.AHB_AP(dp, 0)
     ap.init(True)
 
-    DHCSR = 0xE000EDF0
-    C_DEBUGEN = (1 << 0)
-    C_HALT = (1 << 1)
-    DBGKEY = (0xA05F << 16)
     ap.write32(DHCSR, DBGKEY | C_DEBUGEN)
     # enable the vector catch
     ap.writeMemory(DEMCR, DEMCR_VC_CORERESET)
@@ -218,7 +219,54 @@ def mem_test(board):
             pass
 
 
+def lpc_test(board):
+    link = board.link
+    link.set_deferred_transfer(False)
+
+    dp = pyOCD.coresight.dap.DebugPort(link)
+    dp.init()
+    dp.power_up_debug()
+    ap = pyOCD.coresight.ap.AHB_AP(dp, 0)
+    ap.init(True)
+
+    print("DHCSR: 0x%x" % ap.read32(DHCSR))
+    ap.write32(DHCSR, DBGKEY | C_DEBUGEN | C_HALT)
+    print("DHCSR2: 0x%x" % ap.read32(DHCSR))
+    ap.write32(DHCSR, DBGKEY | C_HALT)
+    print("DHCSR3: 0x%x" % ap.read32(DHCSR))
+    dp.power_down_debug()
+    time.sleep(50)
+    dp.init()
+    dp.power_up_debug()
+    print("DHCSR: 0x%x" % ap.read32(DHCSR))
+    while True:
+        print("DHCSR: 0x%x" % ap.read32(DHCSR))
+        time.sleep(1)
+
+    time.sleep(1000)
+    exit(0)
+
+# Need to determine (per target)
+# -Can target be reset via hardware when DP is powered down?
+#
+
+# SWD uninit
+# -Need a way for both hardware and software reset to coexist
+#    -Software reset - keep debug logic on until target no longer needs to be halted
+#    -Hardware reset - turn debug logic off after programming, use reset to hold?
+# -
+
+# Hardware cases
+# -Reset button goes directly to the target
+# -Normal software reset
+# -Target specific reset sequence
+
+# 
+
+
 def initial_connect(board):
+    #lpc_test(board)
+
     link = board.link
     link.set_deferred_transfer(False)
 
