@@ -19,6 +19,8 @@ from pyOCD.target.target import Target
 import logging
 from struct import unpack
 from time import time
+import binascii
+import struct
 from flash_builder import FlashBuilder
 
 DEFAULT_PAGE_PROGRAM_WEIGHT = 0.130
@@ -40,6 +42,7 @@ analyzer = (
     0x0a12595b, 0x42b1405a, 0x43d2d1f5, 0x4560c004, 0x2000d1e7, 0x2200bdf0, 0x46c0e7f8, 0x000000b6,
     0xedb88320, 0x00000044,
     )
+ANALYZER_SIZE = 0x600
 
 def _msb(n):
     ndx = 0
@@ -78,9 +81,61 @@ class Flash(object):
 
     def __init__(self, target, flash_algo):
         self.target = target
+        flash_algo = dict(flash_algo)
         self.flash_algo = flash_algo
         self.flash_algo_debug = False
         if flash_algo is not None:
+            #TODO - DISTINGUISH BETWEEN PAGE SIZE AND SECTOR SIZE!!!!
+
+            # Options
+            # -Double buffering
+            # -Flash analyzer
+
+            # Setup flash algo
+            memory_map = target.getMemoryMap()
+            ram_regions = [region for region in memory_map if region.type == 'ram']
+            ram_region = ram_regions[0]
+
+            blob = binascii.a2b_hex(flash_algo['instructions'])
+            pad_size = 4 - len(blob) % 4 if len(blob) % 4 != 0 else 0
+            blob += "\x00" * pad_size
+            instr_list = struct.unpack("<" + "L" * (len(blob) / 4), blob)
+            flash_algo_code_offset = 4
+            flash_algo['instructions'] = [0xE00ABE00] + list(instr_list)
+
+            # Flash algo
+            pos = ram_region.start
+            flash_algo['load_address'] = pos
+            flash_algo_start = pos + flash_algo_code_offset
+            pos += len(blob) * 4
+
+            # Analyzer
+            flash_algo['analyzer_supported'] = False
+            flash_algo['analyzer_address'] = pos
+            pos += ANALYZER_SIZE
+
+            # Stack
+            pos += 0x1000
+            flash_algo['begin_stack'] = pos
+
+            # Data
+            # TODO - make sure there is enough space for analyzer - # 256 pages * 4 bytes / page
+            flash_algo['begin_data'] = pos
+            flash_algo['page_buffers'] = [pos, pos + flash_algo['page_size']]
+            pos += flash_algo['page_size'] * 2
+
+            # Set symbols based on the above layout
+            flash_algo['pc_init'] += flash_algo_start
+            flash_algo['pc_unInit'] += flash_algo_start
+            flash_algo['pc_program_page'] += flash_algo_start
+            flash_algo['pc_erase_sector'] += flash_algo_start
+            flash_algo['pc_eraseAll'] += flash_algo_start
+            flash_algo['static_base'] = flash_algo_start + flash_algo['rw_start']
+            flash_algo['min_program_length'] = flash_algo['page_size']
+
+
+            #TODO - verify static base is correct
+            #TODO - run more rigorous testing
             self.end_flash_algo = flash_algo['load_address'] + len(flash_algo) * 4
             self.begin_stack = flash_algo['begin_stack']
             self.begin_data = flash_algo['begin_data']
@@ -94,6 +149,9 @@ class Flash(object):
                 self.page_buffers = [self.begin_data]
 
             self.double_buffer_supported = len(self.page_buffers) > 1
+
+
+
 
         else:
             self.end_flash_algo = None
