@@ -89,29 +89,34 @@ class Flash_k64f(Flash_Kinetis):
         instr_list = struct.unpack("<" + "L" * (len(blob) / 4), blob)
         flash_algo['instructions'] = [0xE00ABE00] + list(instr_list)
 
-        flash_algo['pc_init'] += RAM_START + 4
-        flash_algo['pc_unInit'] += RAM_START + 4
-        flash_algo['pc_program_page'] += RAM_START + 4
-        flash_algo['pc_erase_sector'] += RAM_START + 4
-        flash_algo['pc_eraseAll'] += RAM_START + 4
-
+        # Flash algo
         pos = RAM_START
         flash_algo['load_address'] = pos
+        flash_algo_start = pos + 4  # Start of instructions
         pos += len(blob) * 4
 
+        # Analyzer
         flash_algo['analyzer_supported'] = False
         flash_algo['analyzer_address'] = pos
         pos += ANALYZER_SIZE
 
+        # Stack
         pos += 0x1000
         flash_algo['begin_stack'] = pos
 
-        # TODO - make sure there is enough space for analyzer
+        # Data
+        # TODO - make sure there is enough space for analyzer - # 256 pages * 4 bytes / page
         flash_algo['begin_data'] = pos
         flash_algo['page_buffers'] = [pos, pos + flash_algo['page_size']]
         pos += flash_algo['page_size'] * 2
 
-        flash_algo['static_base'] = RAM_START + 4 + flash_algo['rw_start']
+        # Set symbols based on the above layout
+        flash_algo['pc_init'] += flash_algo_start
+        flash_algo['pc_unInit'] += flash_algo_start
+        flash_algo['pc_program_page'] += flash_algo_start
+        flash_algo['pc_erase_sector'] += flash_algo_start
+        flash_algo['pc_eraseAll'] += flash_algo_start
+        flash_algo['static_base'] = flash_algo_start + flash_algo['rw_start']
         flash_algo['min_program_length'] = flash_algo['page_size']
 
         super(Flash_k64f, self).__init__(target, flash_algo)
