@@ -17,6 +17,7 @@
 
 flash_algo = {
 
+    # Flash algorithm as a hex string
     'instructions':
         "384910b54944086037484cf22051c1814df62811c181018821f0010101803448"
         "324948444ff4801201600021c0e901124ff0a05242614ff48042826180f82010"
@@ -54,17 +55,26 @@ flash_algo = {
         "0000000000000000000000000000000000000000000000000000000000000000"
         "0000000000000000",
 
+    # Relative function addresses
     'pc_init': 0x1,
     'pc_unInit': 0x51,
     'pc_program_page': 0xbf,
     'pc_erase_sector': 0xab,
     'pc_eraseAll': 0x75,
 
+    # Relative region addresses and sizes
     'ro_start': 0x0,
     'ro_size': 0x418,
     'rw_start': 0x418,
     'rw_size': 0x8,
     'zi_start': 0x420,
     'zi_size': 0x28,
-    'page_size': 0x1000,
+
+    # Flash information
+    'flash_start': 0x0,
+    'flash_size': 0x100000,
+    'page_size': 0x200,
+    'sector_sizes': (
+        (0x0, 0x1000),
+    )
 }
