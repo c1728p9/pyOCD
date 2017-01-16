@@ -440,7 +440,6 @@ class FlashBuilder(object):
         progress += self.flash.getFlashInfo().erase_weight
 
         # Set up page and buffer info.
-        error_count = 0
         current_buf = 0
         next_buf = 1
 
@@ -452,9 +451,7 @@ class FlashBuilder(object):
                 if last_page is not None:
                     result = self.flash.waitForCompletion()
                     if result != 0:
-                        data = self.flash.target.readBlockMemoryUnaligned8(last_page.addr, len(last_page.data))
-                        if not _same(last_page.data, data):
-                            raise Exception("Error programming page: %s" % result)
+                        raise Exception("Error programming page: %s" % result)
 
                 self.flash.startProgramPageWithBuffer(current_buf, page.addr)
                 last_page = page
@@ -468,9 +465,7 @@ class FlashBuilder(object):
         assert last_page is not None
         result = self.flash.waitForCompletion()
         if result != 0:
-            data = self.flash.target.readBlockMemoryUnaligned8(last_page.addr, len(last_page.data))
-            if not _same(last_page.data, data):
-                raise Exception("Error programming page: %s" % result)
+            raise Exception("Error programming page: %s" % result)
 
         progress_cb(1.0)
         return FlashBuilder.FLASH_CHIP_ERASE
@@ -566,25 +561,14 @@ class FlashBuilder(object):
         last_page = None
         for sector in self._iter_nonsame_sectors():
             self.flash.eraseSector(sector.addr)
-#             val = self.flash.target.readMemory(0x4001F004)
-#             self.flash.target.writeMemory(0x4001F004, val | 0xF << 20)
-#             print("start, size 0x%x, 0x%x" % (sector.addr, len(sector.data)))
-#             data = self.flash.target.readBlockMemoryUnaligned8(sector.addr, len(sector.data))
-#             assert _same([0xff] * len(sector.data), data), "%s" % data
             for page in sector.pages():
 
                 self.flash.loadPageBuffer(current_buf, page.addr, page.data)
                 if last_page is not None:
                     result = self.flash.waitForCompletion()
                     if result != 0:
-#                         print("Reading addr 0x%x, size 0x%x" % (last_page.addr, len(last_page.data)))
-                        data = self.flash.target.readBlockMemoryUnaligned8(last_page.addr, len(last_page.data))
-                        if not _same(last_page.data, data):
-                            raise Exception("Error programming page: %s" % result)
+                        raise Exception("Error programming page: %s" % result)
 
-#                 print("start, size 0x%x, 0x%x" % (page.addr, len(page.data)))
-#                 data = self.flash.target.readBlockMemoryUnaligned8(page.addr, len(page.data))
-#                 assert _same([0xff] * len(page.data), data), "%s" % data
                 self.flash.startProgramPageWithBuffer(current_buf, page.addr)
                 last_page = page
                 current_buf, next_buf = next_buf, current_buf
@@ -593,9 +577,7 @@ class FlashBuilder(object):
             assert last_page is not None
             result = self.flash.waitForCompletion()
             if result != 0:
-                data = self.flash.target.readBlockMemoryUnaligned8(last_page.addr, len(last_page.data))
-                if not _same(last_page.data, data):
-                    raise Exception("Error programming page: %s" % result)
+                raise Exception("Error programming page: %s" % result)
             last_page = None
 
             progress += sector.getEraseProgramWeight()
