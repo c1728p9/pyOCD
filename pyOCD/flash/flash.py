@@ -87,14 +87,10 @@ class Flash(object):
         if flash_algo is not None:
             #TODO - DISTINGUISH BETWEEN PAGE SIZE AND SECTOR SIZE!!!!
 
-            # Options
-            # -Double buffering
-            # -Flash analyzer
-
-            # Setup flash algo
-            memory_map = target.getMemoryMap()
-            ram_regions = [region for region in memory_map if region.type == 'ram']
-            ram_region = ram_regions[0]
+            # HACK - currently page_size is used in place of sector size
+            assert len(flash_algo['sector_sizes']) == 1
+            flash_algo['page_size'] = flash_algo['sector_sizes'][0][1]
+            pages = flash_algo['flash_size'] // flash_algo['page_size']
 
             blob = binascii.a2b_hex(flash_algo['instructions'])
             pad_size = 4 - len(blob) % 4 if len(blob) % 4 != 0 else 0
@@ -103,26 +99,86 @@ class Flash(object):
             flash_algo_code_offset = 4
             flash_algo['instructions'] = [0xE00ABE00] + list(instr_list)
 
-            # Flash algo
+            # Setup flash algo
+            memory_map = target.getMemoryMap()
+            ram_regions = [region for region in memory_map if
+                           region.type == 'ram']
+            ram_region = ram_regions[0]
+
+            # Get initial sizes
+            data_size = flash_algo['page_size']
+            algo_size = len(blob) * 4
+            stack_size = 0x100
+
+            # Subtract all mandatory features
+            free_size = ram_region.length
+            free_size -= algo_size
+            free_size -= stack_size
+            free_size -= data_size
+
+            # Get data_size with different features turned on
+            data_size_w_none = flash_algo['page_size']
+            data_size_w_dbl_buf = flash_algo['page_size'] * 2
+            data_size_w_analyzer = max(pages * 4, data_size_w_none)
+            data_size_w_all = max(data_size_w_dbl_buf, data_size_w_analyzer)
+
+            # Additional size from a feature
+            analyzer_extra_size = ANALYZER_SIZE + max(0, pages * 4 - data_size)
+            dbl_buf_extra_size = data_size_w_dbl_buf - data_size
+            all_extra_size = max(dbl_buf_extra_size, analyzer_extra_size)
+
+            # Check which features can be enabled
+            if free_size >= all_extra_size:
+                analyzer_support = True
+                double_buffering = True
+                data_size = data_size_w_all
+            elif free_size >= analyzer_extra_size:
+                analyzer_support = True
+                double_buffering = False
+                data_size = data_size_w_analyzer
+            elif free_size >= dbl_buf_extra_size:
+                analyzer_support = False
+                double_buffering = True
+                data_size = data_size_w_dbl_buf
+            elif free_size >= 0:
+                analyzer_support = False
+                double_buffering = False
+                data_size = data_size_w_none
+            else:
+                raise Exception("Not enough ram to run flash algorithm")
+
+            print("Double buffering: %s" % double_buffering)
+            print("Analyzer Support: %s" % analyzer_support)
+
+            # Setup actual layout
             pos = ram_region.start
+
+            # Data buffers
+            flash_algo['begin_data'] = pos
+            if double_buffering:
+                flash_algo['page_buffers'] = [pos, pos +
+                                              flash_algo['page_size']]
+                pos += flash_algo['page_size'] * 2
+            else:
+                pos += flash_algo['page_size']
+
+            # Flash algo
             flash_algo['load_address'] = pos
             flash_algo_start = pos + flash_algo_code_offset
-            pos += len(blob) * 4
+            pos += algo_size
 
             # Analyzer
-            flash_algo['analyzer_supported'] = False
-            flash_algo['analyzer_address'] = pos
-            pos += ANALYZER_SIZE
+            flash_algo['analyzer_supported'] = analyzer_support
+            if analyzer_support:
+                flash_algo['analyzer_address'] = pos
+                pos += ANALYZER_SIZE
 
             # Stack
-            pos += 0x1000
+            pos += stack_size
             flash_algo['begin_stack'] = pos
 
-            # Data
-            # TODO - make sure there is enough space for analyzer - # 256 pages * 4 bytes / page
-            flash_algo['begin_data'] = pos
-            flash_algo['page_buffers'] = [pos, pos + flash_algo['page_size']]
-            pos += flash_algo['page_size'] * 2
+            # Assert that nothing overflowed
+            assert pos <= ram_region.start + ram_region.length
 
             # Set symbols based on the above layout
             flash_algo['pc_init'] += flash_algo_start
@@ -131,11 +187,24 @@ class Flash(object):
             flash_algo['pc_erase_sector'] += flash_algo_start
             flash_algo['pc_eraseAll'] += flash_algo_start
             flash_algo['static_base'] = flash_algo_start + flash_algo['rw_start']
+            flash_algo['ro_start'] += flash_algo_start
+            flash_algo['rw_start'] += flash_algo_start
+            flash_algo['zi_start'] += flash_algo_start
+
             flash_algo['min_program_length'] = flash_algo['page_size']
 
+            # Check required alignment
+            assert flash_algo['begin_data'] % 0x1000 == 0
+            assert flash_algo['load_address'] % 8 == 0
+            assert (not analyzer_support or
+                    flash_algo['analyzer_address'] % 8 == 0)
+            assert flash_algo['begin_stack'] % 8 == 0
 
+
+            #TODO - verify alignment of everything
             #TODO - verify static base is correct
             #TODO - run more rigorous testing
+            #TODO - check stack usage
             self.end_flash_algo = flash_algo['load_address'] + len(flash_algo) * 4
             self.begin_stack = flash_algo['begin_stack']
             self.begin_data = flash_algo['begin_data']
@@ -143,15 +212,12 @@ class Flash(object):
             self.min_program_length = flash_algo.get('min_program_length', 0)
 
             # Check for double buffering support.
-            if flash_algo.has_key('page_buffers'):
+            if double_buffering:
                 self.page_buffers = flash_algo['page_buffers']
             else:
                 self.page_buffers = [self.begin_data]
 
             self.double_buffer_supported = len(self.page_buffers) > 1
-
-
-
 
         else:
             self.end_flash_algo = None
