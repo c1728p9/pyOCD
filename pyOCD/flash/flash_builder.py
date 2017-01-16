@@ -18,7 +18,7 @@
 from pyOCD.target.target import Target
 import logging
 from struct import unpack
-from time import time, sleep
+from time import time
 from binascii import crc32
 
 # Number of bytes in a page to read to quickly determine if the page has the same data
@@ -452,7 +452,9 @@ class FlashBuilder(object):
                 if last_page is not None:
                     result = self.flash.waitForCompletion()
                     if result != 0:
-                        raise Exception("Error programming page: %s" % result)
+                        data = self.flash.target.readBlockMemoryUnaligned8(last_page.addr, len(last_page.data))
+                        if not _same(last_page.data, data):
+                            raise Exception("Error programming page: %s" % result)
 
                 self.flash.startProgramPageWithBuffer(current_buf, page.addr)
                 last_page = page
@@ -466,7 +468,9 @@ class FlashBuilder(object):
         assert last_page is not None
         result = self.flash.waitForCompletion()
         if result != 0:
-            raise Exception("Error programming page: %s" % result)
+            data = self.flash.target.readBlockMemoryUnaligned8(last_page.addr, len(last_page.data))
+            if not _same(last_page.data, data):
+                raise Exception("Error programming page: %s" % result)
 
         progress_cb(1.0)
         return FlashBuilder.FLASH_CHIP_ERASE
@@ -548,7 +552,6 @@ class FlashBuilder(object):
         """
         actual_page_erase_count = 0
         actual_page_erase_weight = 0
-        progress = 0
 
         progress_cb(0.0)
 
@@ -557,85 +560,47 @@ class FlashBuilder(object):
         progress = self._scan_pages_for_same(progress_cb)
 
         # Set up sector and buffer info.
-        error_count = 0
         current_buf = 0
         next_buf = 1
 
         last_page = None
         for sector in self._iter_nonsame_sectors():
             self.flash.eraseSector(sector.addr)
-            #print("Sector 0x%x" % sector.addr)
+#             val = self.flash.target.readMemory(0x4001F004)
+#             self.flash.target.writeMemory(0x4001F004, val | 0xF << 20)
+#             print("start, size 0x%x, 0x%x" % (sector.addr, len(sector.data)))
+#             data = self.flash.target.readBlockMemoryUnaligned8(sector.addr, len(sector.data))
+#             assert _same([0xff] * len(sector.data), data), "%s" % data
             for page in sector.pages():
 
-                #print("Page addr 0x%x size: 0x%x buf: %i" % (page.addr, len(page.data), current_buf))
                 self.flash.loadPageBuffer(current_buf, page.addr, page.data)
                 if last_page is not None:
                     result = self.flash.waitForCompletion()
-                    #print("End")
                     if result != 0:
-                        raise Exception("Error programming page: %s" % result)
+#                         print("Reading addr 0x%x, size 0x%x" % (last_page.addr, len(last_page.data)))
+                        data = self.flash.target.readBlockMemoryUnaligned8(last_page.addr, len(last_page.data))
+                        if not _same(last_page.data, data):
+                            raise Exception("Error programming page: %s" % result)
 
-                #print("Start")
+#                 print("start, size 0x%x, 0x%x" % (page.addr, len(page.data)))
+#                 data = self.flash.target.readBlockMemoryUnaligned8(page.addr, len(page.data))
+#                 assert _same([0xff] * len(page.data), data), "%s" % data
                 self.flash.startProgramPageWithBuffer(current_buf, page.addr)
                 last_page = page
                 current_buf, next_buf = next_buf, current_buf
-                #sleep(0.001)
+
+            # Wait for final page program to complete
+            assert last_page is not None
+            result = self.flash.waitForCompletion()
+            if result != 0:
+                data = self.flash.target.readBlockMemoryUnaligned8(last_page.addr, len(last_page.data))
+                if not _same(last_page.data, data):
+                    raise Exception("Error programming page: %s" % result)
+            last_page = None
 
             progress += sector.getEraseProgramWeight()
             if self.page_erase_weight > 0:
                 progress_cb(float(progress) / float(self.page_erase_weight))
-
-        # Wait for final page program to complete
-        assert last_page is not None
-        result = self.flash.waitForCompletion()
-        #print("End")
-        if result != 0:
-            raise Exception("Error programming page")
-
-                
-#         sector, i = self._next_nonsame_sector(0)
-# 
-#         # Make sure there are actually pages to program differently from current flash contents.
-#         if sector is not None:
-#             # Load first sector buffer
-#             self.flash.loadPageBuffer(current_buf, sector.addr, sector.data)
-# 
-#             while sector is not None:
-#                 assert sector.same is not None
-# 
-#                 # Kick off this sector program.
-#                 current_addr = sector.addr
-#                 current_weight = sector.getEraseProgramWeight()
-#                 self.flash.eraseSector(current_addr)
-#                 self.flash.startProgramPageWithBuffer(current_buf, current_addr) #, erase_page=True)
-#                 actual_page_erase_count += 1
-#                 actual_page_erase_weight += sector.getEraseProgramWeight()
-# 
-#                 # Get next sector and load it.
-#                 sector, i = self._next_nonsame_sector(i)
-#                 if sector is not None:
-#                     self.flash.loadPageBuffer(next_buf, sector.addr, sector.data)
-# 
-#                 # Wait for the program to complete.
-#                 result = self.flash.waitForCompletion()
-# 
-#                 # check the return code
-#                 if result != 0:
-#                     logging.error('programPage(0x%x) error: %i', current_addr, result)
-#                     error_count += 1
-#                     if error_count > self.max_errors:
-#                         logging.error("Too many sector programming errors, aborting program operation")
-#                         break
-# 
-#                 # Swap buffers.
-#                 temp = current_buf
-#                 current_buf = next_buf
-#                 next_buf = temp
-# 
-#                 # Update progress
-#                 progress += current_weight
-#                 if self.page_erase_weight > 0:
-#                     progress_cb(float(progress) / float(self.page_erase_weight))
 
         progress_cb(1.0)
 

@@ -90,14 +90,22 @@ class Flash(object):
             #TODO - determine if analyzer will work with variable sized blocks
             pages = flash_algo['flash_size'] // flash_algo['sector_sizes'][0][1]
 
+            # Extract algo and add breakpoint to the front of it
             blob = binascii.a2b_hex(flash_algo['instructions'])
             pad_size = 4 - len(blob) % 4 if len(blob) % 4 != 0 else 0
             blob += "\x00" * pad_size
-            instr_list = struct.unpack("<" + "L" * (len(blob) / 4), blob)
-            flash_algo_code_offset = 4
-            flash_algo['instructions'] = [0xE00ABE00] + list(instr_list)
+            bkpt_data = [0x00,0xBE,0x0A, 0xE0]
+            flash_algo['instructions'] = bkpt_data + list(bytearray(blob))
+            flash_algo['pc_init'] += len(bkpt_data)
+            flash_algo['pc_unInit'] += len(bkpt_data)
+            flash_algo['pc_program_page'] += len(bkpt_data)
+            flash_algo['pc_erase_sector'] += len(bkpt_data)
+            flash_algo['pc_eraseAll'] += len(bkpt_data)
+            flash_algo['ro_size'] += len(bkpt_data)
+            flash_algo['rw_start'] += len(bkpt_data)
+            flash_algo['zi_start'] += len(bkpt_data)
 
-            # Setup flash algo
+            # Get ram to run flash algo in
             memory_map = target.getMemoryMap()
             ram_regions = [region for region in memory_map if
                            region.type == 'ram']
@@ -164,7 +172,7 @@ class Flash(object):
 
             # Flash algo
             flash_algo['load_address'] = pos
-            flash_algo_start = pos + flash_algo_code_offset
+            flash_algo_start = pos
             pos += algo_size
 
             # Analyzer
@@ -186,10 +194,10 @@ class Flash(object):
             flash_algo['pc_program_page'] += flash_algo_start
             flash_algo['pc_erase_sector'] += flash_algo_start
             flash_algo['pc_eraseAll'] += flash_algo_start
-            flash_algo['static_base'] = flash_algo_start + flash_algo['rw_start']
             flash_algo['ro_start'] += flash_algo_start
             flash_algo['rw_start'] += flash_algo_start
             flash_algo['zi_start'] += flash_algo_start
+            flash_algo['static_base'] = flash_algo['rw_start']
 
             flash_algo['min_program_length'] = flash_algo['page_size']
 
@@ -445,7 +453,7 @@ class Flash(object):
 
         if init:
             # download flash algo in RAM
-            self.target.writeBlockMemoryAligned32(self.flash_algo['load_address'], self.flash_algo['instructions'])
+            self.target.writeBlockMemoryUnaligned8(self.flash_algo['load_address'], self.flash_algo['instructions'])
             if self.flash_algo['analyzer_supported']:
                 self.target.writeBlockMemoryAligned32(self.flash_algo['analyzer_address'], analyzer)
 
@@ -487,16 +495,19 @@ class Flash(object):
             expected_fp = self.flash_algo['static_base']
             expected_sp = self.flash_algo['begin_stack']
             expected_pc = self.flash_algo['load_address']
-            expected_flash_algo = self.flash_algo['instructions']
+            #TODO - clean this up
+            expected_flash_algo = self.flash_algo['instructions'][0:self.flash_algo['ro_size']]
             if analyzer_supported:
                 expected_analyzer = analyzer
             final_fp = self.target.readCoreRegister('r9')
             final_sp = self.target.readCoreRegister('sp')
             final_pc = self.target.readCoreRegister('pc')
+
             #TODO - uncomment if Read/write and zero init sections can be moved into a separate flash algo section
-            #final_flash_algo = self.target.readBlockMemoryAligned32(self.flash_algo['load_address'], len(self.flash_algo['instructions']))
+            final_flash_algo = self.target.readBlockMemoryUnaligned8(self.flash_algo['ro_start'], self.flash_algo['ro_size'])
             #if analyzer_supported:
             #    final_analyzer = self.target.readBlockMemoryAligned32(self.flash_algo['analyzer_address'], len(analyzer))
+
 
             error = False
             if final_fp != expected_fp:
@@ -512,9 +523,9 @@ class Flash(object):
                 logging.error("PC should be 0x%x but is 0x%x" % (expected_pc, final_pc))
                 error = True
             #TODO - uncomment if Read/write and zero init sections can be moved into a separate flash algo section
-            #if not _same(expected_flash_algo, final_flash_algo):
-            #    logging.error("Flash algorithm overwritten!")
-            #    error = True
+            if not _same(expected_flash_algo, final_flash_algo):
+                logging.error("Flash algorithm overwritten!")
+                error = True
             #if analyzer_supported and not _same(expected_analyzer, final_analyzer):
             #    logging.error("Analyzer overwritten!")
             #    error = True
