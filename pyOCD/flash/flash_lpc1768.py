@@ -15,7 +15,7 @@
  limitations under the License.
 """
 
-from flash import Flash, PageInfo, DEFAULT_PAGE_PROGRAM_WEIGHT, DEFAULT_PAGE_ERASE_WEIGHT
+from flash import Flash, SectorInfo, DEFAULT_SECTOR_PROGRAM_WEIGHT, DEFAULT_SECTOR_ERASE_WEIGHT
 
 LARGE_PAGE_START_ADDR = 0x10000
 SMALL_PAGE_SIZE = 0x1000
@@ -61,8 +61,8 @@ class Flash_lpc1768(Flash):
     def __init__(self, target):
         super(Flash_lpc1768, self).__init__(target, flash_algo)
 
-    def erasePage(self, flashPtr):
-        Flash.erasePage(self, flashPtr)
+    def eraseSector(self, flashPtr):
+        Flash.eraseSector(self, flashPtr)
 
     def programPage(self, flashPtr, bytes):
         if flashPtr < LARGE_PAGE_START_ADDR:
@@ -76,15 +76,15 @@ class Flash_lpc1768(Flash):
             data = bytes[i * WRITE_SIZE : (i + 1) * WRITE_SIZE]
             Flash.programPage(self, flashPtr + i * WRITE_SIZE, data)
 
-    def getPageInfo(self, addr):
-        info = PageInfo()
+    def getSectorInfo(self, addr):
+        info = SectorInfo()
         if addr < LARGE_PAGE_START_ADDR:
-            info.erase_weight = DEFAULT_PAGE_ERASE_WEIGHT
-            info.program_weight = DEFAULT_PAGE_PROGRAM_WEIGHT
+            info.erase_weight = DEFAULT_SECTOR_ERASE_WEIGHT
+            info.program_weight = DEFAULT_SECTOR_PROGRAM_WEIGHT
             info.size = SMALL_PAGE_SIZE
         else:
-            info.erase_weight = DEFAULT_PAGE_ERASE_WEIGHT * LARGE_TO_SMALL_RATIO
-            info.program_weight = DEFAULT_PAGE_PROGRAM_WEIGHT * LARGE_TO_SMALL_RATIO
+            info.erase_weight = DEFAULT_SECTOR_ERASE_WEIGHT * LARGE_TO_SMALL_RATIO
+            info.program_weight = DEFAULT_SECTOR_PROGRAM_WEIGHT * LARGE_TO_SMALL_RATIO
             info.size = LARGE_PAGE_SIZE
         info.base_addr = addr - (addr % info.size)
         return info

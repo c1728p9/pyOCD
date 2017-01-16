@@ -184,24 +184,24 @@ def basic_test(board_id, file):
             print "pc: 0x%X" % target.readCoreRegister('pc')
 
         print "\r\n\r\n------ TEST PROGRAM/ERASE PAGE ------"
-        # Fill 3 pages with 0x55
-        page_size = flash.getPageInfo(addr_flash).size
-        fill = [0x55] * page_size
+        # Fill 3 sectors with 0x55
+        sector_size = flash.getSectorInfo(addr_flash).size
+        fill = [0x55] * sector_size
         flash.init()
         for i in range(0, 3):
-            address = addr_flash + page_size * i
+            address = addr_flash + sector_size * i
             # Test only supports a location with 3 aligned
-            # pages of the same size
-            current_page_size = flash.getPageInfo(addr_flash).size
-            assert page_size == current_page_size
-            assert address % current_page_size == 0
-            flash.erasePage(address)
+            # sectors of the same size
+            current_sector_size = flash.getSectorInfo(addr_flash).size
+            assert sector_size == current_sector_size
+            assert address % current_sector_size == 0
+            flash.eraseSector(address)
             flash.programPage(address, fill)
-        # Erase the middle page
-        flash.erasePage(addr_flash + page_size)
-        # Verify the 1st and 3rd page were not erased, and that the 2nd page is fully erased
-        data = target.readBlockMemoryUnaligned8(addr_flash, page_size * 3)
-        expected = fill + [0xFF] * page_size + fill
+        # Erase the middle sector
+        flash.eraseSector(addr_flash + sector_size)
+        # Verify the 1st and 3rd sectors were not erased, and that the 2nd sector is fully erased
+        data = target.readBlockMemoryUnaligned8(addr_flash, sector_size * 3)
+        expected = fill + [0xFF] * sector_size + fill
         if data == expected:
             print "TEST PASSED"
         else:

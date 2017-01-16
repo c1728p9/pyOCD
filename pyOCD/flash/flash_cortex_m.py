@@ -31,13 +31,13 @@ class Flash_cortex_m(Flash):
     def eraseAll(self):
         raise Exception("Unsupported flash operation on generic cortex_m")
 
-    def erasePage(self, flashPtr):
+    def eraseSector(self, flashPtr):
         raise Exception("Unsupported flash operation on generic cortex_m")
 
     def programPage(self, flashPtr, bytes):
         raise Exception("Unsupported flash operation on generic cortex_m")
 
-    def getPageInfo(self, addr):
+    def getSectorInfo(self, addr):
         raise Exception("Unsupported flash operation on generic cortex_m")
 
     def getFlashInfo(self):

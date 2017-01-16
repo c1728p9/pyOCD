@@ -77,7 +77,7 @@ class GDBServerTool(object):
         # reserved: "-a", "--address"
         # reserved: "-s", "--skip"
         parser.add_argument("-hp", "--hide_progress", action="store_true", help="Don't display programming progress.")
-        parser.add_argument("-fp", "--fast_program", action="store_true", help="Use only the CRC of each page to determine if it already has the same data.")
+        parser.add_argument("-fp", "--fast_program", action="store_true", help="Use only the CRC of each sector to determine if it already has the same data.")
         parser.add_argument("-S", "--semihosting", dest="enable_semihosting", action="store_true", help="Enable semihosting.")
         parser.add_argument("-G", "--gdb-syscall", dest="semihost_use_syscalls", action="store_true", help="Use GDB syscalls for semihosting file I/O.")
         parser.add_argument("-c", "--command", dest="commands", metavar="CMD", action='append', nargs='+', help="Run command (OpenOCD compatibility).")

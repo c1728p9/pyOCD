@@ -21,8 +21,8 @@ from struct import unpack
 from time import time
 from flash_builder import FlashBuilder
 
-DEFAULT_PAGE_PROGRAM_WEIGHT = 0.130
-DEFAULT_PAGE_ERASE_WEIGHT = 0.048
+DEFAULT_SECTOR_PROGRAM_WEIGHT = 0.130
+DEFAULT_SECTOR_ERASE_WEIGHT = 0.048
 DEFAULT_CHIP_ERASE_WEIGHT = 0.174
 
 # Program to compute the CRC of sectors.  This works on cortex-m processors.
@@ -30,7 +30,7 @@ DEFAULT_CHIP_ERASE_WEIGHT = 0.174
 # 200 bytes of executable data below + 1024 byte crc table = 1224 bytes
 # Usage requirements:
 # -In memory reserve 0x600 for code & table
-# -Make sure data buffer is big enough to hold 4 bytes for each page that could be checked (ie.  >= num pages * 4)
+# -Make sure data buffer is big enough to hold 4 bytes for each sector that could be checked (ie.  >= num sectors * 4)
 analyzer = (
     0x2180468c, 0x2600b5f0, 0x4f2c2501, 0x447f4c2c, 0x1c2b0049, 0x425b4033, 0x40230872, 0x085a4053,
     0x425b402b, 0x40534023, 0x402b085a, 0x4023425b, 0x085a4053, 0x425b402b, 0x40534023, 0x402b085a,
@@ -56,13 +56,13 @@ def _same(d1, d2):
             return False
     return True
 
-class PageInfo(object):
+class SectorInfo(object):
 
     def __init__(self):
-        self.base_addr = None           # Start address of this page
-        self.erase_weight = None        # Time it takes to erase a page
-        self.program_weight = None      # Time it takes to program a page (Not including data transfer time)
-        self.size = None                # Size of page
+        self.base_addr = None           # Start address of this sector
+        self.erase_weight = None        # Time it takes to erase a sector
+        self.program_weight = None      # Time it takes to program a sector (Not including data transfer time)
+        self.size = None                # Size of sector
         self.crc_supported = None       # Is the function computeCrcs supported?
 
 class FlashInfo(object):
@@ -155,17 +155,17 @@ class Flash(object):
         if result != 0:
             logging.error('eraseAll error: %i', result)
 
-    def erasePage(self, flashPtr):
+    def eraseSector(self, flashPtr):
         """
-        Erase one page
+        Erase one sector
         """
 
-        # update core register to execute the erasePage subroutine
+        # update core register to execute the eraseSector subroutine
         result = self.callFunctionAndWait(self.flash_algo['pc_erase_sector'], flashPtr)
 
         # check the return code
         if result != 0:
-            logging.error('erasePage(0x%x) error: %i', flashPtr, result)
+            logging.error('eraseSector(0x%x) error: %i', flashPtr, result)
 
     def programPage(self, flashPtr, bytes):
         """
@@ -179,7 +179,7 @@ class Flash(object):
         self.target.writeBlockMemoryUnaligned8(self.begin_data, bytes)
 
         # get info about this page
-        page_info = self.getPageInfo(flashPtr)
+        sector_info = self.getSectorInfo(flashPtr)
 
         # update core register to execute the program_page subroutine
         result = self.callFunctionAndWait(self.flash_algo['pc_program_page'], flashPtr, len(bytes), self.begin_data)
@@ -201,7 +201,7 @@ class Flash(object):
         assert bufferNumber < len(self.page_buffers), "Invalid buffer number"
 
         # get info about this page
-        page_info = self.getPageInfo(flashPtr)
+        page_info = self.getSectorInfo(flashPtr)
 
         # update core register to execute the program_page subroutine
         result = self.callFunction(self.flash_algo['pc_program_page'], flashPtr, page_info.size, self.page_buffers[bufferNumber])
@@ -224,7 +224,7 @@ class Flash(object):
         if self.min_program_length:
             min_len = self.min_program_length
         else:
-            min_len = self.getPageInfo(flashPtr).size
+            min_len = self.getSectorInfo(flashPtr).size
 
         # Require write address and length to be aligned to min write size.
         if flashPtr % min_len:
@@ -245,19 +245,19 @@ class Flash(object):
         if result != 0:
             logging.error('programPhrase(0x%x) error: %i', flashPtr, result)
 
-    def getPageInfo(self, addr):
+    def getSectorInfo(self, addr):
         """
-        Get info about the page that contains this address
+        Get info about the sector that contains this address
 
-        Override this function if variable page sizes are supported
+        Override this function if variable sector sizes are supported
         """
         region = self.target.getMemoryMap().getRegionForAddress(addr)
         if not region:
             return None
 
-        info = PageInfo()
-        info.erase_weight = DEFAULT_PAGE_ERASE_WEIGHT
-        info.program_weight = DEFAULT_PAGE_PROGRAM_WEIGHT
+        info = SectorInfo()
+        info.erase_weight = DEFAULT_SECTOR_ERASE_WEIGHT
+        info.program_weight = DEFAULT_SECTOR_PROGRAM_WEIGHT
         info.size = region.blocksize
         info.base_addr = addr - (addr % info.size)
         return info

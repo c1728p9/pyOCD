@@ -97,7 +97,7 @@ parser.add_argument("-s", "--skip", default=0, type=int_base_0,
                     help="Skip programming the first N bytes.  This can only be used with binary files")
 parser.add_argument("-hp", "--hide_progress", action="store_true", help="Don't display programming progress.")
 parser.add_argument("-fp", "--fast_program", action="store_true",
-                    help="Use only the CRC of each page to determine if it already has the same data.")
+                    help="Use only the CRC of each sector to determine if it already has the same data.")
 parser.add_argument("-da", "--daparg", dest="daparg", nargs='+', help="Send setting to DAPAccess layer.")
 
 # Notes
@@ -177,20 +177,20 @@ def main():
                     print("Done")
                 elif args.sector_erase and args.address is not None:
                     flash.init()
-                    page_addr = args.address
+                    sector_addr = args.address
                     for i in range(args.count):
-                        page_info = flash.getPageInfo(page_addr)
-                        if not page_info:
+                        sector_info = flash.getSectorInfo(sector_addr)
+                        if not sector_info:
                             break
-                        # Align page address on first time through.
+                        # Align sector address on first time through.
                         if i == 0:
-                            delta = page_addr % page_info.size
+                            delta = sector_addr % sector_info.size
                             if delta:
-                                print("Warning: sector address 0x%08x is unaligned" % page_addr)
-                                page_addr -= delta
-                        print("Erasing sector 0x%08x" % page_addr)
-                        flash.erasePage(page_addr)
-                        page_addr += page_info.size
+                                print("Warning: sector address 0x%08x is unaligned" % sector_addr)
+                                sector_addr -= delta
+                        print("Erasing sector 0x%08x" % sector_addr)
+                        flash.eraseSector(sector_addr)
+                        sector_addr += sector_info.size
                 else:
                     print("No operation performed")
                 return

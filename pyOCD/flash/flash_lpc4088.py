@@ -15,7 +15,7 @@
  limitations under the License.
 """ 
 
-from flash import Flash, PageInfo, DEFAULT_PAGE_PROGRAM_WEIGHT, DEFAULT_PAGE_ERASE_WEIGHT
+from flash import Flash
 
 LARGE_PAGE_START_ADDR = 0x10000
 SMALL_PAGE_SIZE = 0x1000
