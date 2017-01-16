@@ -50,9 +50,10 @@ def _stub_progress(percent):
     pass
 
 class flash_page(object):
-    def __init__(self, addr, size, data, erase_weight, program_weight):
+    def __init__(self, addr, size, page_size, data, erase_weight, program_weight):
         self.addr = addr
         self.size = size
+        self.page_size = page_size
         self.data = data
         self.erase_weight = erase_weight
         self.program_weight = program_weight
@@ -166,7 +167,8 @@ class FlashBuilder(object):
         flash_addr = self.flash_operation_list[0].addr
         info = self.flash.getSectorInfo(flash_addr)
         page_addr = flash_addr - (flash_addr % info.size)
-        current_page = flash_page(page_addr, info.size, [], info.erase_weight, info.program_weight)
+        current_page = flash_page(page_addr, info.size, info.page_size, [],
+                                  info.erase_weight, info.program_weight)
         self.page_list.append(current_page)
         for flash_operation in self.flash_operation_list:
             pos = 0
@@ -177,7 +179,7 @@ class FlashBuilder(object):
                 if flash_addr >= current_page.addr + current_page.size:
                     info = self.flash.getSectorInfo(flash_addr)
                     page_addr = flash_addr - (flash_addr % info.size)
-                    current_page = flash_page(page_addr, info.size, [], info.erase_weight, info.program_weight)
+                    current_page = flash_page(page_addr, info.size, info.page_size, [], info.erase_weight, info.program_weight)
                     self.page_list.append(current_page)
 
                 # Fill the page gap if there is one
@@ -397,12 +399,13 @@ class FlashBuilder(object):
         progress += self.flash.getFlashInfo().erase_weight
         for page in self.page_list:
             if not page.erased:
-                #TODO - program pages
-                page_size = 0x100  # TODO
-                for i in range(0, len(page.data), page_size):
-                    data = page.data[i:i + page_size]
+                for i in range(0, len(page.data), page.page_size):
+                    data = page.data[i:i + page.page_size]
                     addr = page.addr + i
-                    self.flash.programPage(addr, data)
+                    for i in range(0, len(page.data), page.page_size):
+                        data = page.data[i:i + page.page_size]
+                        addr = page.addr + i
+                        self.flash.programPage(addr, data)
                 progress += page.getProgramWeight()
                 progress_cb(float(progress) / float(self.chip_erase_weight))
         progress_cb(1.0)
@@ -499,7 +502,10 @@ class FlashBuilder(object):
             # Program page if not the same
             if page.same is False:
                 self.flash.eraseSector(page.addr)
-                self.flash.programPage(page.addr, page.data)
+                for i in range(0, len(page.data), page.page_size):
+                    data = page.data[i:i + page.page_size]
+                    addr = page.addr + i
+                    self.flash.programPage(addr, data)
                 actual_page_erase_count += 1
                 actual_page_erase_weight += page.getEraseProgramWeight()
 
