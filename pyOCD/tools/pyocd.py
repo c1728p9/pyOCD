@@ -660,8 +660,8 @@ class PyOCDTool(object):
             count = int(args[1], base=0)
         self.flash.init()
         while count:
-            info = self.flash.getPageInfo(addr)
-            self.flash.erasePage(info.base_addr)
+            info = self.flash.getSectorInfo(addr)
+            self.flash.eraseSector(info.base_addr)
             print "Erased page 0x%08x" % info.base_addr
             count -= 1
             addr += info.size

@@ -59,7 +59,7 @@ def _same(d1, d2):
             return False
     return True
 
-class PageInfo(object):
+class SectorInfo(object):
 
     def __init__(self):
         self.base_addr = None           # Start address of this page
@@ -279,17 +279,17 @@ class Flash(object):
         if result != 0:
             logging.error('eraseAll error: %i', result)
 
-    def erasePage(self, flashPtr):
+    def eraseSector(self, flashPtr):
         """
         Erase one page
         """
 
-        # update core register to execute the erasePage subroutine
+        # update core register to execute the eraseSector subroutine
         result = self.callFunctionAndWait(self.flash_algo['pc_erase_sector'], flashPtr)
 
         # check the return code
         if result != 0:
-            logging.error('erasePage(0x%x) error: %i', flashPtr, result)
+            logging.error('eraseSector(0x%x) error: %i', flashPtr, result)
 
     def programPage(self, flashPtr, bytes):
         """
@@ -303,7 +303,7 @@ class Flash(object):
         self.target.writeBlockMemoryUnaligned8(self.begin_data, bytes)
 
         # get info about this page
-        page_info = self.getPageInfo(flashPtr)
+        page_info = self.getSectorInfo(flashPtr)
 
         # update core register to execute the program_page subroutine
         result = self.callFunctionAndWait(self.flash_algo['pc_program_page'], flashPtr, len(bytes), self.begin_data)
@@ -325,7 +325,7 @@ class Flash(object):
         assert bufferNumber < len(self.page_buffers), "Invalid buffer number"
 
         # get info about this page
-        page_info = self.getPageInfo(flashPtr)
+        page_info = self.getSectorInfo(flashPtr)
 
         # update core register to execute the program_page subroutine
         result = self.callFunction(self.flash_algo['pc_program_page'], flashPtr, page_info.size, self.page_buffers[bufferNumber])
@@ -348,7 +348,7 @@ class Flash(object):
         if self.min_program_length:
             min_len = self.min_program_length
         else:
-            min_len = self.getPageInfo(flashPtr).size
+            min_len = self.getSectorInfo(flashPtr).size
 
         # Require write address and length to be aligned to min write size.
         if flashPtr % min_len:
@@ -369,7 +369,7 @@ class Flash(object):
         if result != 0:
             logging.error('programPhrase(0x%x) error: %i', flashPtr, result)
 
-    def getPageInfo(self, addr):
+    def getSectorInfo(self, addr):
         """
         Get info about the page that contains this address
 
@@ -379,7 +379,7 @@ class Flash(object):
         if not region:
             return None
 
-        info = PageInfo()
+        info = SectorInfo()
         info.erase_weight = DEFAULT_PAGE_ERASE_WEIGHT
         info.program_weight = DEFAULT_PAGE_PROGRAM_WEIGHT
         info.size = region.blocksize

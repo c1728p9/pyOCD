@@ -208,6 +208,10 @@ def flash_test(board_id):
             print("TEST PASSED")
             test_pass_count += 1
         else:
+            with open("expected.bin", "wb") as f:
+                f.write(bytearray(data))
+            with open("actual.bin", "wb") as f:
+                f.write(bytearray(data_flashed))
             print("TEST FAILED")
         test_count += 1
 
@@ -266,7 +270,7 @@ def flash_test(board_id):
 
         print("\r\n\r\n------ Test Offset Write ------")
         addr = rom_start + rom_size / 2
-        page_size = flash.getPageInfo(addr).size
+        page_size = flash.getSectorInfo(addr).size
         new_data = [0x55] * page_size * 2
         info = flash.flashBlock(addr, new_data, progress_cb=print_progress)
         data_flashed = target.readBlockMemoryUnaligned8(addr, len(new_data))
@@ -279,7 +283,7 @@ def flash_test(board_id):
 
         print("\r\n\r\n------ Test Multiple Block Writes ------")
         addr = rom_start + rom_size / 2
-        page_size = flash.getPageInfo(addr).size
+        page_size = flash.getSectorInfo(addr).size
         more_data = [0x33] * page_size * 2
         addr = (rom_start + rom_size / 2) + 1 #cover multiple pages
         fb = flash.getFlashBuilder()
@@ -298,7 +302,7 @@ def flash_test(board_id):
         print("\r\n\r\n------ Test Overlapping Blocks ------")
         test_pass = False
         addr = (rom_start + rom_size / 2) #cover multiple pages
-        page_size = flash.getPageInfo(addr).size
+        page_size = flash.getSectorInfo(addr).size
         new_data = [0x33] * page_size
         fb = flash.getFlashBuilder()
         fb.addData(addr, new_data)

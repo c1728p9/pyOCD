@@ -185,14 +185,14 @@ def basic_test(board_id, file):
 
         print "\r\n\r\n------ TEST PROGRAM/ERASE PAGE ------"
         # Fill 3 pages with 0x55
-        page_size = flash.getPageInfo(addr_flash).size
+        page_size = flash.getSectorInfo(addr_flash).size
         fill = [0x55] * page_size
         flash.init()
         for i in range(0, 3):
             address = addr_flash + page_size * i
             # Test only supports a location with 3 aligned
             # pages of the same size
-            current_page_size = flash.getPageInfo(addr_flash).size
+            current_page_size = flash.getSectorInfo(addr_flash).size
             assert page_size == current_page_size
             assert address % current_page_size == 0
             flash.erasePage(address)

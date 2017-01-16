@@ -179,7 +179,7 @@ def main():
                     flash.init()
                     page_addr = args.address
                     for i in range(args.count):
-                        page_info = flash.getPageInfo(page_addr)
+                        page_info = flash.getSectorInfo(page_addr)
                         if not page_info:
                             break
                         # Align page address on first time through.
@@ -189,7 +189,7 @@ def main():
                                 print("Warning: sector address 0x%08x is unaligned" % page_addr)
                                 page_addr -= delta
                         print("Erasing sector 0x%08x" % page_addr)
-                        flash.erasePage(page_addr)
+                        flash.eraseSector(page_addr)
                         page_addr += page_info.size
                 else:
                     print("No operation performed")

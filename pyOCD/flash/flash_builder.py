@@ -164,7 +164,7 @@ class FlashBuilder(object):
         # Convert the list of flash operations into flash pages
         program_byte_count = 0
         flash_addr = self.flash_operation_list[0].addr
-        info = self.flash.getPageInfo(flash_addr)
+        info = self.flash.getSectorInfo(flash_addr)
         page_addr = flash_addr - (flash_addr % info.size)
         current_page = flash_page(page_addr, info.size, [], info.erase_weight, info.program_weight)
         self.page_list.append(current_page)
@@ -175,7 +175,7 @@ class FlashBuilder(object):
                 # Check if operation is in next page
                 flash_addr = flash_operation.addr + pos
                 if flash_addr >= current_page.addr + current_page.size:
-                    info = self.flash.getPageInfo(flash_addr)
+                    info = self.flash.getSectorInfo(flash_addr)
                     page_addr = flash_addr - (flash_addr % info.size)
                     current_page = flash_page(page_addr, info.size, [], info.erase_weight, info.program_weight)
                     self.page_list.append(current_page)
@@ -397,7 +397,12 @@ class FlashBuilder(object):
         progress += self.flash.getFlashInfo().erase_weight
         for page in self.page_list:
             if not page.erased:
-                self.flash.programPage(page.addr, page.data)
+                #TODO - program pages
+                page_size = 0x100  # TODO
+                for i in range(0, len(page.data), page_size):
+                    data = page.data[i:i + page_size]
+                    addr = page.addr + i
+                    self.flash.programPage(addr, data)
                 progress += page.getProgramWeight()
                 progress_cb(float(progress) / float(self.chip_erase_weight))
         progress_cb(1.0)
@@ -493,7 +498,7 @@ class FlashBuilder(object):
 
             # Program page if not the same
             if page.same is False:
-                self.flash.erasePage(page.addr)
+                self.flash.eraseSector(page.addr)
                 self.flash.programPage(page.addr, page.data)
                 actual_page_erase_count += 1
                 actual_page_erase_weight += page.getEraseProgramWeight()
@@ -573,7 +578,7 @@ class FlashBuilder(object):
                 # Kick off this page program.
                 current_addr = page.addr
                 current_weight = page.getEraseProgramWeight()
-                self.flash.erasePage(current_addr)
+                self.flash.eraseSector(current_addr)
                 self.flash.startProgramPageWithBuffer(current_buf, current_addr) #, erase_page=True)
                 actual_page_erase_count += 1
                 actual_page_erase_weight += page.getEraseProgramWeight()
