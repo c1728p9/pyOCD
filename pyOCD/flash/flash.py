@@ -66,12 +66,14 @@ class SectorInfo(object):
         self.erase_weight = None        # Time it takes to erase a page
         self.program_weight = None      # Time it takes to program a page (Not including data transfer time)
         self.size = None                # Size of page
+        self.page_size = None
         self.crc_supported = None       # Is the function computeCrcs supported?
 
 class FlashInfo(object):
 
     def __init__(self):
         self.rom_start = None           # Starting address of ROM
+        self.rom_size = None
         self.erase_weight = None        # Time it takes to perform a chip erase
 
 class Flash(object):
@@ -85,12 +87,8 @@ class Flash(object):
         self.flash_algo = flash_algo
         self.flash_algo_debug = False
         if flash_algo is not None:
-            #TODO - DISTINGUISH BETWEEN PAGE SIZE AND SECTOR SIZE!!!!
-
-            # HACK - currently page_size is used in place of sector size
-            assert len(flash_algo['sector_sizes']) == 1
-            flash_algo['page_size'] = flash_algo['sector_sizes'][0][1]
-            pages = flash_algo['flash_size'] // flash_algo['page_size']
+            #TODO - determine if analyzer will work with variable sized blocks
+            pages = flash_algo['flash_size'] // flash_algo['sector_sizes'][0][1]
 
             blob = binascii.a2b_hex(flash_algo['instructions'])
             pad_size = 4 - len(blob) % 4 if len(blob) % 4 != 0 else 0
@@ -146,7 +144,9 @@ class Flash(object):
                 data_size = data_size_w_none
             else:
                 raise Exception("Not enough ram to run flash algorithm")
-
+#             analyzer_support = False
+#             double_buffering = False
+#             data_size = data_size_w_none
             print("Double buffering: %s" % double_buffering)
             print("Analyzer Support: %s" % analyzer_support)
 
@@ -328,7 +328,7 @@ class Flash(object):
         page_info = self.getSectorInfo(flashPtr)
 
         # update core register to execute the program_page subroutine
-        result = self.callFunction(self.flash_algo['pc_program_page'], flashPtr, page_info.size, self.page_buffers[bufferNumber])
+        result = self.callFunction(self.flash_algo['pc_program_page'], flashPtr, page_info.page_size, self.page_buffers[bufferNumber])
 
     def loadPageBuffer(self, bufferNumber, flashPtr, bytes):
         assert bufferNumber < len(self.page_buffers), "Invalid buffer number"
@@ -371,18 +371,24 @@ class Flash(object):
 
     def getSectorInfo(self, addr):
         """
-        Get info about the page that contains this address
-
-        Override this function if variable page sizes are supported
+        Get info about the sector that contains this address
         """
-        region = self.target.getMemoryMap().getRegionForAddress(addr)
-        if not region:
+        start = self.flash_algo['flash_start']
+        size = self.flash_algo['flash_size']
+        if addr < start or addr >= start + size:
             return None
+
+        sector_size = None
+        for start, size in self.flash_algo['sector_sizes']:
+            if addr >= start:
+                sector_size = size
+        assert sector_size is not None
 
         info = SectorInfo()
         info.erase_weight = DEFAULT_PAGE_ERASE_WEIGHT
         info.program_weight = DEFAULT_PAGE_PROGRAM_WEIGHT
-        info.size = region.blocksize
+        info.size = sector_size
+        info.page_size = self.flash_algo['page_size']
         info.base_addr = addr - (addr % info.size)
         return info
 
@@ -392,10 +398,9 @@ class Flash(object):
 
         Override this function to return differnt values
         """
-        boot_region = self.target.getMemoryMap().getBootMemory()
-
         info = FlashInfo()
-        info.rom_start = boot_region.start if boot_region else 0
+        info.rom_start = self.flash_algo['flash_start']
+        info.rom_size = self.flash_algo['flash_size']
         info.erase_weight = DEFAULT_CHIP_ERASE_WEIGHT
         info.crc_supported = self.flash_algo['analyzer_supported']
         return info
