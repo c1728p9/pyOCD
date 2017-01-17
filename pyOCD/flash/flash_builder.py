@@ -60,7 +60,7 @@ class flash_page(object):
         self.erased = None
         self.same = None
 
-    def pages(self):
+    def iter_pages(self):
         class page(object):
 
             def __init__(self, addr, data):
@@ -445,7 +445,7 @@ class FlashBuilder(object):
 
         last_page = None
         for sector in self._iter_unerased_sectors():
-            for page in sector.pages():
+            for page in sector.iter_pages():
 
                 self.flash.loadPageBuffer(current_buf, page.addr, page.data)
                 if last_page is not None:
@@ -462,10 +462,10 @@ class FlashBuilder(object):
                 progress_cb(float(progress) / float(self.chip_erase_weight))
 
         # Wait for final page program to complete
-        assert last_page is not None
-        result = self.flash.waitForCompletion()
-        if result != 0:
-            raise Exception("Error programming page: %s" % result)
+        if last_page is not None:
+            result = self.flash.waitForCompletion()
+            if result != 0:
+                raise Exception("Error programming page: %s" % result)
 
         progress_cb(1.0)
         return FlashBuilder.FLASH_CHIP_ERASE
@@ -561,7 +561,7 @@ class FlashBuilder(object):
         last_page = None
         for sector in self._iter_nonsame_sectors():
             self.flash.eraseSector(sector.addr)
-            for page in sector.pages():
+            for page in sector.iter_pages():
 
                 self.flash.loadPageBuffer(current_buf, page.addr, page.data)
                 if last_page is not None:
@@ -574,10 +574,10 @@ class FlashBuilder(object):
                 current_buf, next_buf = next_buf, current_buf
 
             # Wait for final page program to complete
-            assert last_page is not None
-            result = self.flash.waitForCompletion()
-            if result != 0:
-                raise Exception("Error programming page: %s" % result)
+            if last_page is not None:
+                result = self.flash.waitForCompletion()
+                if result != 0:
+                    raise Exception("Error programming page: %s" % result)
             last_page = None
 
             progress += sector.getEraseProgramWeight()

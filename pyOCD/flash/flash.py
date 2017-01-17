@@ -152,11 +152,9 @@ class Flash(object):
                 data_size = data_size_w_none
             else:
                 raise Exception("Not enough ram to run flash algorithm")
-#             analyzer_support = False
-#             double_buffering = False
-#             data_size = data_size_w_none
-            print("Double buffering: %s" % double_buffering)
-            print("Analyzer Support: %s" % analyzer_support)
+
+            logging.info("Double buffering: %s", double_buffering)
+            logging.info("Analyzer Support: %s", analyzer_support)
 
             # Setup actual layout
             pos = ram_region.start
