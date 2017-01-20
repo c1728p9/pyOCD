@@ -15,76 +15,89 @@
  limitations under the License.
 """
 
-from flash_cortex_m import Flash_cortex_m
-from flash_klxx import Flash_klxx
-from flash_ke15z7 import Flash_ke15z7
-from flash_ke18f16 import Flash_ke18f16
-from flash_kl27z4 import Flash_kl27z4
-from flash_kl28z import Flash_kl28z
-from flash_kl43z4 import Flash_kl43z4
-from flash_kv10z7 import Flash_kv10z7
-from flash_kv11z7 import Flash_kv11z7
-from flash_kw01z4 import Flash_kw01z4
-from flash_kw40z4 import Flash_kw40z4
-from flash_k20d50m import Flash_k20d50m
-from flash_k22f import Flash_k22f
-from flash_k64f import Flash_k64f
-from flash_k66f18 import Flash_k66f18
-from flash_k82f25615 import Flash_k82f25615
-from flash_lpc800 import Flash_lpc800
-from flash_lpc11u24 import Flash_lpc11u24
-from flash_lpc1768 import Flash_lpc1768
-from flash_lpc4330 import Flash_lpc4330
-from flash_nrf51 import Flash_nrf51
-from flash_nrf52 import Flash_nrf52
-from flash_stm32f103rc import Flash_stm32f103rc
-from flash_stm32f051 import Flash_stm32f051
-from flash_maxwsnenv import Flash_maxwsnenv
-from flash_max32600mbed import Flash_max32600mbed
-from flash_w7500 import Flash_w7500
-from flash_lpc11xx_32 import Flash_lpc11xx_32
-from flash_lpc824 import Flash_lpc824
-from flash_lpc4088 import Flash_lpc4088
-from flash_ncs36510 import Flash_ncs36510
-from flash_lpc4088qsb_dm import Flash_lpc4088qsb_dm
+#from flash_cortex_m import Flash_cortex_m
+#from flash_klxx import Flash_klxx
+import flash_MKE15Z256xxx7
+import flash_MKE18F512xxx16
+import flash_MKL02Z32xxx4
+import flash_MKL05Z32xxx4
+import flash_MKL25Z128xxx4
+import flash_MKL26Z128xxx4
+import flash_MKL27Z64xxx4
+import flash_MKL28Z512xxx7
+import flash_MKL43Z256xxx4
+import flash_MKL46Z256xxx4
+import flash_MKV10Z32xxx7
+import flash_MKV11Z128xxx7
+import flash_MKW01Z128xxx4
+import flash_MKW40Z160xxx4
+import flash_MK20DX128xxx5
+import flash_MK22FN512xxx12
+import flash_MK64FN1M0xxx12
+import flash_MK66FN2M0xxx18
+import flash_MK82FN256xxx15
+import flash_LPC11U35FHI33_501
+import flash_LPC11U24FBD64_401
+import flash_LPC1768
+import flash_LPC4330
+import flash_nRF51822_xxAA
+import flash_nRF51822_xxAB
+import flash_nRF51822_xxAC
+import flash_nRF51422_xxAC
+import flash_nRF52832_xxAA
+import flash_STM32F103RC
+import flash_STM32F051T8
+#'maxwsnenv': flash_maxwsnenv,
+#'max32600mbed': flash_max32600mbed,
+#'w7500': flash_w7500,
+import flash_LPC1114FN28_102
+import flash_LPC824M201JHI33
+import flash_LPC4088FBD144
+#'ncs36510': flash_ncs36510,
+#'lpc4088qsb': flash_lpc4088qsb_dm,
+#'lpc4088dm': flash_lpc4088qsb_dm,
+
 
 FLASH = {
-         'cortex_m': Flash_cortex_m,
-         'kinetis': Flash_cortex_m,
-         'ke15z7': Flash_ke15z7,
-         'ke18f16': Flash_ke18f16,
-         'kl02z': Flash_klxx,
-         'kl05z': Flash_klxx,
-         'kl25z': Flash_klxx,
-         'kl26z': Flash_klxx,
-         'kl27z4': Flash_kl27z4,
-         'kl28z': Flash_kl28z,
-         'kl43z4': Flash_kl43z4,
-         'kl46z': Flash_klxx,
-         'kv10z7': Flash_kv10z7,
-         'kv11z7': Flash_kv11z7,
-         'kw01z4': Flash_kw01z4,
-         'kw40z4': Flash_kw40z4,
-         'k20d50m': Flash_k20d50m,
-         'k22f': Flash_k22f,
-         'k64f': Flash_k64f,
-         'k66f18': Flash_k66f18,
-         'k82f25615': Flash_k82f25615,
-         'lpc800': Flash_lpc800,
-         'lpc11u24': Flash_lpc11u24,
-         'lpc1768':  Flash_lpc1768,
-         'lpc4330':  Flash_lpc4330,
-         'nrf51': Flash_nrf51,
-         'nrf52': Flash_nrf52,
-         'stm32f103rc': Flash_stm32f103rc,
-         'stm32f051': Flash_stm32f051,
-         'maxwsnenv': Flash_maxwsnenv,
-         'max32600mbed': Flash_max32600mbed,
-         'w7500': Flash_w7500,
-         'lpc11xx_32': Flash_lpc11xx_32,
-         'lpc824': Flash_lpc824,
-         'lpc4088': Flash_lpc4088,
-         'ncs36510': Flash_ncs36510, 
-         'lpc4088qsb': Flash_lpc4088qsb_dm,
-         'lpc4088dm': Flash_lpc4088qsb_dm,
+        #'cortex_m': Flash_cortex_m,
+        #'kinetis': Flash_cortex_m,
+        'MKE15Z256xxx7': flash_MKE15Z256xxx7.flash_algo,
+        'MKE18F512xxx16': flash_MKE18F512xxx16.flash_algo,
+        'MKL02Z32xxx4': flash_MKL02Z32xxx4.flash_algo,
+        'MKL05Z32xxx4': flash_MKL05Z32xxx4.flash_algo,
+        'MKL25Z128xxx4': flash_MKL25Z128xxx4.flash_algo,
+        'MKL26Z128xxx4': flash_MKL26Z128xxx4.flash_algo,
+        'MKL27Z64xxx4': flash_MKL27Z64xxx4.flash_algo,
+        'MKL28Z512xxx7': flash_MKL28Z512xxx7.flash_algo,
+        'MKL43Z256xxx4': flash_MKL43Z256xxx4.flash_algo,
+        'MKL46Z256xxx4': flash_MKL46Z256xxx4.flash_algo,
+        'MKV10Z32xxx7': flash_MKV10Z32xxx7.flash_algo,
+        'MKV11Z128xxx7': flash_MKV11Z128xxx7.flash_algo,
+        'MKW01Z128xxx4': flash_MKW01Z128xxx4.flash_algo,
+        'MKW40Z160xxx4': flash_MKW40Z160xxx4.flash_algo,
+        'MK20DX128xxx5': flash_MK20DX128xxx5.flash_algo,
+        'MK22FN512xxx12': flash_MK22FN512xxx12.flash_algo,
+        'MK64FN1M0xxx12': flash_MK64FN1M0xxx12.flash_algo,
+        'MK66FN2M0xxx18': flash_MK66FN2M0xxx18.flash_algo,
+        'MK82FN256xxx15': flash_MK82FN256xxx15.flash_algo,
+        'LPC11U35FHI33/501': flash_LPC11U35FHI33_501.flash_algo,
+        'LPC11U24FBD64/401': flash_LPC11U24FBD64_401.flash_algo,
+        'LPC1768': flash_LPC1768.flash_algo,
+        'LPC4330': flash_LPC4330.flash_algo,
+        'nRF51822_xxAA': flash_nRF51822_xxAA.flash_algo,
+        'nRF51822_xxAB': flash_nRF51822_xxAB.flash_algo,
+        'nRF51822_xxAC': flash_nRF51822_xxAC.flash_algo,
+        'nRF51422_xxAC': flash_nRF51422_xxAC.flash_algo,
+        'flash_nRF52832_xxAA': flash_nRF52832_xxAA.flash_algo,
+        'STM32F103RC': flash_STM32F103RC.flash_algo,
+        'STM32F051T8': flash_STM32F051T8.flash_algo,
+        #'maxwsnenv': flash_maxwsnenv,
+        #'max32600mbed': flash_max32600mbed,
+        #'w7500': flash_w7500,
+        'LPC1114FN28/102': flash_LPC1114FN28_102.flash_algo,
+        'LPC824M201JHI33': flash_LPC824M201JHI33.flash_algo,
+        'LPC4088FBD144': flash_LPC4088FBD144.flash_algo,
+        #'ncs36510': flash_ncs36510,
+        #'lpc4088qsb': flash_lpc4088qsb_dm,
+        #'lpc4088dm': flash_lpc4088qsb_dm,
          }
