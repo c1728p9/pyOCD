@@ -185,7 +185,8 @@ def basic_test(board_id, file):
 
         print "\r\n\r\n------ TEST PROGRAM/ERASE PAGE ------"
         # Fill 3 sectors with 0x55
-        sector_size = flash.getSectorInfo(addr_flash).size
+        sector_info = flash.getSectorInfo(addr_flash)
+        sector_size = sector_info.size
         fill = [0x55] * sector_size
         flash.init()
         for i in range(0, 3):
@@ -196,7 +197,9 @@ def basic_test(board_id, file):
             assert sector_size == current_sector_size
             assert address % current_sector_size == 0
             flash.eraseSector(address)
-            flash.programPage(address, fill)
+            for j in range(0, len(fill), sector_info.page_size):
+                data = fill[j:j + sector_info.page_size]
+                flash.programPage(address + j, data)
         # Erase the middle sector
         flash.eraseSector(addr_flash + sector_size)
         # Verify the 1st and 3rd sectors were not erased, and that the 2nd sector is fully erased

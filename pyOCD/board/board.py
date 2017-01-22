@@ -17,6 +17,7 @@
 
 from pyOCD.target import TARGET
 from pyOCD.flash import FLASH
+from pyOCD.flash.flash import Flash
 
 import logging
 import traceback
@@ -28,7 +29,7 @@ class Board(object):
     def __init__(self, target, flash, link, frequency=1000000):
         self.link = link
         self.target = TARGET[target](self.link)
-        self.flash = FLASH[flash](self.target)
+        self.flash = Flash(self.target, FLASH[flash])
         self.target.setFlash(self.flash)
         self.debug_clock_frequency = frequency
         self.closed = False

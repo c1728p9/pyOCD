@@ -19,6 +19,7 @@ from pyOCD.target.target import Target
 import logging
 from struct import unpack
 from time import time
+import binascii
 from flash_builder import FlashBuilder
 
 DEFAULT_SECTOR_PROGRAM_WEIGHT = 0.130
@@ -40,6 +41,7 @@ analyzer = (
     0x0a12595b, 0x42b1405a, 0x43d2d1f5, 0x4560c004, 0x2000d1e7, 0x2200bdf0, 0x46c0e7f8, 0x000000b6,
     0xedb88320, 0x00000044,
     )
+ANALYZER_SIZE = 0x600
 
 def _msb(n):
     ndx = 0
@@ -63,12 +65,14 @@ class SectorInfo(object):
         self.erase_weight = None        # Time it takes to erase a sector
         self.program_weight = None      # Time it takes to program a sector (Not including data transfer time)
         self.size = None                # Size of sector
+        self.page_size = None           # Size of pages in this sector
         self.crc_supported = None       # Is the function computeCrcs supported?
 
 class FlashInfo(object):
 
     def __init__(self):
         self.rom_start = None           # Starting address of ROM
+        self.rom_size = None            # Size of ROM
         self.erase_weight = None        # Time it takes to perform a chip erase
 
 class Flash(object):
@@ -78,9 +82,143 @@ class Flash(object):
 
     def __init__(self, target, flash_algo):
         self.target = target
+        flash_algo = dict(flash_algo)
         self.flash_algo = flash_algo
         self.flash_algo_debug = False
         if flash_algo is not None:
+
+            # Count sectors
+            sector_count = 0
+            start = None
+            pos_prev = flash_algo["flash_start"] + flash_algo['flash_size']
+            for start, block_size in reversed(flash_algo['sector_sizes']):
+                assert start < pos_prev, "Sector sizes not in order"
+                assert start % block_size == 0, "Sector address incorrect size"
+                assert pos_prev % block_size == 0
+                sector_count += (pos_prev - start) // block_size
+                pos_prev = start
+            assert start == flash_algo["flash_start"]
+
+            # Extract algo and add breakpoint to the front of it
+            blob = binascii.a2b_hex(flash_algo['instructions'])
+            pad_size = 4 - len(blob) % 4 if len(blob) % 4 != 0 else 0
+            blob += "\x00" * pad_size
+            bkpt_data = [0x00, 0xBE, 0x0A, 0xE0]
+            flash_algo['instructions'] = bkpt_data + list(bytearray(blob))
+            flash_algo['pc_init'] += len(bkpt_data)
+            flash_algo['pc_unInit'] += len(bkpt_data)
+            flash_algo['pc_program_page'] += len(bkpt_data)
+            flash_algo['pc_erase_sector'] += len(bkpt_data)
+            flash_algo['pc_eraseAll'] += len(bkpt_data)
+            flash_algo['ro_size'] += len(bkpt_data)
+            flash_algo['rw_start'] += len(bkpt_data)
+            flash_algo['zi_start'] += len(bkpt_data)
+
+            # Get ram to run flash algo in
+            memory_map = target.getMemoryMap()
+            ram_regions = [region for region in memory_map if
+                           region.type == 'ram']
+            ram_region = max(ram_regions, key=lambda rgn: rgn.length)
+
+            # Get initial sizes
+            data_size = flash_algo['page_size']
+            algo_size = len(blob) * 4
+            stack_size = 0x100
+
+            # Subtract all mandatory features
+            free_size = ram_region.length
+            free_size -= algo_size
+            free_size -= stack_size
+            free_size -= data_size
+
+            # Get data_size with different features turned on
+            data_size_w_none = flash_algo['page_size']
+            data_size_w_dbl_buf = flash_algo['page_size'] * 2
+            data_size_w_analyzer = max(sector_count * 4, data_size_w_none)
+            data_size_w_all = max(data_size_w_dbl_buf, data_size_w_analyzer)
+
+            # Additional size from a feature
+            analyzer_extra_size = ANALYZER_SIZE + max(0, sector_count * 4 - data_size)
+            dbl_buf_extra_size = data_size_w_dbl_buf - data_size
+            all_extra_size = max(dbl_buf_extra_size, analyzer_extra_size)
+
+            # Check which features can be enabled
+            if free_size >= all_extra_size:
+                analyzer_support = True
+                double_buffering = True
+                data_size = data_size_w_all
+            elif free_size >= analyzer_extra_size:
+                analyzer_support = True
+                double_buffering = False
+                data_size = data_size_w_analyzer
+            elif free_size >= dbl_buf_extra_size:
+                analyzer_support = False
+                double_buffering = True
+                data_size = data_size_w_dbl_buf
+            elif free_size >= 0:
+                analyzer_support = False
+                double_buffering = False
+                data_size = data_size_w_none
+            else:
+                raise Exception("Not enough ram to run flash algorithm")
+
+            logging.info("Double buffering: %s", double_buffering)
+            logging.info("Analyzer Support: %s", analyzer_support)
+
+            # Setup actual layout
+            pos = ram_region.start
+
+            # Data buffers
+            flash_algo['begin_data'] = pos
+            if double_buffering:
+                flash_algo['page_buffers'] = [pos, pos +
+                                              flash_algo['page_size']]
+            pos += data_size
+
+            # Flash algo
+            flash_algo['load_address'] = pos
+            flash_algo_start = pos
+            pos += algo_size
+
+            # Analyzer
+            flash_algo['analyzer_supported'] = analyzer_support
+            if analyzer_support:
+                flash_algo['analyzer_address'] = pos
+                pos += ANALYZER_SIZE
+
+            # Stack
+            pos += stack_size
+            flash_algo['begin_stack'] = pos
+
+            # Assert that nothing overflowed
+            assert pos <= ram_region.start + ram_region.length
+
+            # Set symbols based on the above layout
+            flash_algo['pc_init'] += flash_algo_start
+            flash_algo['pc_unInit'] += flash_algo_start
+            flash_algo['pc_program_page'] += flash_algo_start
+            flash_algo['pc_erase_sector'] += flash_algo_start
+            flash_algo['pc_eraseAll'] += flash_algo_start
+            flash_algo['ro_start'] += flash_algo_start
+            flash_algo['rw_start'] += flash_algo_start
+            flash_algo['zi_start'] += flash_algo_start
+            flash_algo['static_base'] = flash_algo['rw_start']
+
+            flash_algo['min_program_length'] = flash_algo['page_size']
+
+            # Check required alignment
+            assert flash_algo['begin_data'] % 0x1000 == 0
+            assert flash_algo['load_address'] % 8 == 0
+            assert (not analyzer_support or
+                    flash_algo['analyzer_address'] % 8 == 0)
+            assert flash_algo['begin_stack'] % 8 == 0
+
+
+            #TODO - verify alignment of everything
+            #TODO - verify static base is correct
+            #TODO - run more rigorous testing
+            #TODO - check stack usage
+
             self.end_flash_algo = flash_algo['load_address'] + len(flash_algo) * 4
             self.begin_stack = flash_algo['begin_stack']
             self.begin_data = flash_algo['begin_data']
@@ -88,7 +226,7 @@ class Flash(object):
             self.min_program_length = flash_algo.get('min_program_length', 0)
 
             # Check for double buffering support.
-            if flash_algo.has_key('page_buffers'):
+            if double_buffering:
                 self.page_buffers = flash_algo['page_buffers']
             else:
                 self.page_buffers = [self.begin_data]
@@ -204,7 +342,7 @@ class Flash(object):
         page_info = self.getSectorInfo(flashPtr)
 
         # update core register to execute the program_page subroutine
-        result = self.callFunction(self.flash_algo['pc_program_page'], flashPtr, page_info.size, self.page_buffers[bufferNumber])
+        result = self.callFunction(self.flash_algo['pc_program_page'], flashPtr, page_info.page_size, self.page_buffers[bufferNumber])
 
     def loadPageBuffer(self, bufferNumber, flashPtr, bytes):
         assert bufferNumber < len(self.page_buffers), "Invalid buffer number"
@@ -251,14 +389,22 @@ class Flash(object):
 
         Override this function if variable sector sizes are supported
         """
-        region = self.target.getMemoryMap().getRegionForAddress(addr)
-        if not region:
+        start = self.flash_algo['flash_start']
+        size = self.flash_algo['flash_size']
+        if addr < start or addr >= start + size:
             return None
+
+        sector_size = None
+        for start, size in self.flash_algo['sector_sizes']:
+            if addr >= start:
+                sector_size = size
+        assert sector_size is not None
 
         info = SectorInfo()
         info.erase_weight = DEFAULT_SECTOR_ERASE_WEIGHT
         info.program_weight = DEFAULT_SECTOR_PROGRAM_WEIGHT
-        info.size = region.blocksize
+        info.size = sector_size
+        info.page_size = self.flash_algo['page_size']
         info.base_addr = addr - (addr % info.size)
         return info
 
@@ -268,10 +414,9 @@ class Flash(object):
 
         Override this function to return differnt values
         """
-        boot_region = self.target.getMemoryMap().getBootMemory()
-
         info = FlashInfo()
-        info.rom_start = boot_region.start if boot_region else 0
+        info.rom_start = self.flash_algo['flash_start']
+        info.rom_size = self.flash_algo['flash_size']
         info.erase_weight = DEFAULT_CHIP_ERASE_WEIGHT
         info.crc_supported = self.flash_algo['analyzer_supported']
         return info
@@ -316,7 +461,7 @@ class Flash(object):
 
         if init:
             # download flash algo in RAM
-            self.target.writeBlockMemoryAligned32(self.flash_algo['load_address'], self.flash_algo['instructions'])
+            self.target.writeBlockMemoryUnaligned8(self.flash_algo['load_address'], self.flash_algo['instructions'])
             if self.flash_algo['analyzer_supported']:
                 self.target.writeBlockMemoryAligned32(self.flash_algo['analyzer_address'], analyzer)
 
@@ -358,14 +503,16 @@ class Flash(object):
             expected_fp = self.flash_algo['static_base']
             expected_sp = self.flash_algo['begin_stack']
             expected_pc = self.flash_algo['load_address']
-            expected_flash_algo = self.flash_algo['instructions']
+            #TODO - clean this up
+            expected_flash_algo = self.flash_algo['instructions'][0:self.flash_algo['ro_size']]
+
             if analyzer_supported:
                 expected_analyzer = analyzer
             final_fp = self.target.readCoreRegister('r9')
             final_sp = self.target.readCoreRegister('sp')
             final_pc = self.target.readCoreRegister('pc')
             #TODO - uncomment if Read/write and zero init sections can be moved into a separate flash algo section
-            #final_flash_algo = self.target.readBlockMemoryAligned32(self.flash_algo['load_address'], len(self.flash_algo['instructions']))
+            final_flash_algo = self.target.readBlockMemoryUnaligned8(self.flash_algo['ro_start'], self.flash_algo['ro_size'])
             #if analyzer_supported:
             #    final_analyzer = self.target.readBlockMemoryAligned32(self.flash_algo['analyzer_address'], len(analyzer))
 
@@ -383,9 +530,9 @@ class Flash(object):
                 logging.error("PC should be 0x%x but is 0x%x" % (expected_pc, final_pc))
                 error = True
             #TODO - uncomment if Read/write and zero init sections can be moved into a separate flash algo section
-            #if not _same(expected_flash_algo, final_flash_algo):
-            #    logging.error("Flash algorithm overwritten!")
-            #    error = True
+            if not _same(expected_flash_algo, final_flash_algo):
+                logging.error("Flash algorithm overwritten!")
+                error = True
             #if analyzer_supported and not _same(expected_analyzer, final_analyzer):
             #    logging.error("Analyzer overwritten!")
             #    error = True
