@@ -175,6 +175,9 @@ class BreakpointManager(object):
             if region is not None:
                 is_flash = region.isFlash
                 is_ram = region.isRam
+            else:
+                is_flash = False
+                is_ram = False
 
         # Determine best type to use if auto.
         if type == Target.BREAKPOINT_AUTO:
