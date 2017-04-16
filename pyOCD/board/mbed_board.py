@@ -59,6 +59,8 @@ BOARD_ID_TO_INFO = {
                 "0341": BoardInfo(  "FRDM-KV31Z",           "kv31f12",          "l1_kl25z.bin"          ),
                 "0400": BoardInfo(  "maxwsnenv",            "maxwsnenv",        "l1_maxwsnenv.bin",     ),
                 "0405": BoardInfo(  "max32600mbed",         "max32600mbed",     "l1_max32600mbed.bin",  ),
+                "0700": BoardInfo(  "NUCLEO-F103RB",        "STM32F103RB",      "ST-Nucleo-F103RB.bin", ),
+                "0740": BoardInfo(  "ST-Nucleo-F411RE",     "STM32F411RE",      None,                   ),
                 "0824": BoardInfo(  "LPCXpresso824-MAX",    "lpc824",           "l1_lpc824.bin",        ),
                 "1010": BoardInfo(  "mbed NXP LPC1768",     "lpc1768",          "l1_lpc1768.bin",       ),
                 "1017": BoardInfo(  "mbed HRM1017",         "nrf51",            "l1_nrf51.bin",         ),
