@@ -21,6 +21,7 @@ from struct import unpack
 from collections import namedtuple
 from ArmPackManager import Cache
 from .flash_algo import PackFlashAlgo
+from ..family.flash_cortex_m import Flash_cortex_m
 from ...core.memory_map import MemoryMap, RamRegion, FlashRegion
 from ...flash.flash import Flash
 from .. import CoreSightTarget
@@ -48,14 +49,17 @@ def get_target_and_flash(device_name, link):
     cache = Cache(True, True)
     if device_name not in cache.index:
         raise Exception("Unsupported device '%s'" % device_name)
-    algo_binary = cache.get_flash_algorthim_binary(device_name)
-    pack_algo = PackFlashAlgo(algo_binary.read())
     dev = cache.index[device_name]
+    binaries = cache.get_flash_algorthim_binary(device_name, all=True)
+    algos = [PackFlashAlgo(binary.read()) for binary in binaries]
+    pack_algo = _filter_algos(dev, algos)[0]
     flash_block = FlashInfo(pack_algo.flash_start, pack_algo.flash_size,
                             pack_algo.sector_sizes)
     memory_map = get_memory_map(dev, flash_block)
     target = CoreSightTarget(link, memory_map)
-    flash = Flash(target, get_pyocd_flash_algo(pack_algo, memory_map))
+    pyocd_algo = get_pyocd_flash_algo(pack_algo, memory_map)
+    flash = (Flash_cortex_m(target) if pyocd_algo is None
+             else Flash(target, pyocd_algo))
     return target, flash
 
 
@@ -83,7 +87,7 @@ def get_memory_map(dev, flash_info):
 
 
 def get_pyocd_flash_algo(pack_algo, memory_map):
-    """Return a dictionary representing a pyOCD flash algorithm"""
+    """Return a dictionary representing a pyOCD flash algorithm or None"""
     ram_region = [region for region in memory_map if region.type == "ram"][0]
     sector_sizes = [region.blocksize for region in memory_map if
                     (region.type == "rom" or region.type == "flash")]
@@ -105,7 +109,8 @@ def get_pyocd_flash_algo(pack_algo, memory_map):
     offset += len(instructions) * 4
 
     if offset > ram_region.length:
-        raise Exception("Not enough space for flash algorithm")
+        # Not enough space for flash algorithm
+        return None
 
     # TODO - analyzer support
     # TODO - double buffering
@@ -191,4 +196,25 @@ def _get_cache_device_errors(dev):
                 problems.append("Device region '%s' key '%s' has invalid "
                                 "value '%s'" % (region_name, key, info[key],))
     return None if len(problems) == 0 else problems
+
+
+def _filter_algos(dev, algos):
+    """Filter out algos not for the ROM/Flash of the device"""
+    if "memory" not in dev:
+        return algos
+    if "IROM1" not in dev["memory"]:
+        return algos
+    if "IROM2" in dev["memory"]:
+        return algos
+
+    rom_rgn = dev["memory"]["IROM1"]
+    try:
+        start = int(rom_rgn["start"], 0)
+        size = int(rom_rgn["size"], 0)
+    except ValueError:
+        return algos
+
+    matching_algos = [algo for algo in algos if
+                      algo.flash_start == start and algo.flash_size == size]
+    return matching_algos if len(matching_algos) == 1 else algos
 
