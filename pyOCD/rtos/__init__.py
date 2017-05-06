@@ -17,8 +17,10 @@
 
 from .argon import ArgonThreadProvider
 from .freertos import FreeRTOSThreadProvider
+from .rtx2 import RTX2ThreadProvider
 
 RTOS = {
           'Argon' : ArgonThreadProvider,
           'FreeRTOS' : FreeRTOSThreadProvider,
+          'RTX2' : RTX2ThreadProvider,
          }
